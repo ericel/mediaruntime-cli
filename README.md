@@ -35,11 +35,12 @@ over the stored login. Do not pass credentials as command-line arguments. `--bas
 ## Run a job
 
 ```bash
+# Relative and absolute local paths are uploaded automatically.
 mediaruntime run ./launch.mp4 --output video.web --wait
 
-mediaruntime run ./launch.mp4 \
-  --output video.streaming \
-  --output audio.transcription \
+mediaruntime run "/Users/you/Videos/launch.mp4" \
+  -o video.streaming \
+  -o audio.transcription \
   --metadata '{"asset_id":"launch-01"}' \
   --idempotency-key 'asset:launch-01:v1' \
   --download ./launch-01.zip
@@ -49,6 +50,11 @@ mediaruntime run ./launch.mp4 \
 temporary file, validates its advertised size and SHA-256 when available, and publishes
 it atomically. Existing files are preserved unless `--force` is explicit. Signed download
 URLs are never printed.
+
+In an interactive terminal, `run` displays an elapsed-time spinner while it uploads a
+local source, waits for the terminal job state, and downloads and verifies the bundle.
+The indicator uses `stderr` and is automatically disabled for `--json`, redirected
+output, and other non-interactive execution.
 
 Supported frozen output aliases:
 

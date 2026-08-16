@@ -38,6 +38,7 @@ import {
 import { runTriggerCommand } from "./commands/trigger.js";
 import { BundleDownloadError, CliError, UsageError } from "./errors.js";
 import { isLoopbackDestination } from "./trigger/destination.js";
+import { createActivityIndicator } from "./ui/activity.js";
 
 export { parseTriggerArguments, runTriggerCommand } from "./commands/trigger.js";
 export { createSyntheticTerminalEvent } from "./trigger/event.js";
@@ -50,7 +51,7 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 const HELP = `MediaRuntime CLI
 
 Usage:
@@ -92,6 +93,7 @@ export interface CliDependencies {
   ): Promise<void>;
   writeStdout?(text: string): void;
   writeStderr?(text: string): void;
+  isStderrTTY?: boolean;
   credentialStore?: CredentialStore;
   openBrowser?(url: string): Promise<void>;
   sleep?(milliseconds: number): Promise<void>;
@@ -259,6 +261,8 @@ export async function executeCli(
   const writeStdout = dependencies.writeStdout ?? ((text: string) => process.stdout.write(text));
   const writeStderr = dependencies.writeStderr ?? ((text: string) => process.stderr.write(text));
   const json = argv.includes("--json");
+  const isStderrTTY = dependencies.isStderrTTY ??
+    (dependencies.writeStderr === undefined && process.stderr.isTTY === true);
   try {
     const global = extractGlobalOptions(argv);
     const command = global.args[0];
@@ -304,7 +308,12 @@ export async function executeCli(
       ...(apiKey === undefined ? {} : { apiKey }),
     });
     const downloadBundle = dependencies.downloadBundle ?? downloadBundleAtomically;
-    const commandDependencies = { jobs: client.jobs, writeStdout, downloadBundle };
+    const commandDependencies = {
+      jobs: client.jobs,
+      writeStdout,
+      downloadBundle,
+      activity: createActivityIndicator(writeStderr, isStderrTTY && !json),
+    };
     if (command === "run") return await runCommand(global.args.slice(1), commandDependencies);
     if (command === "jobs") {
       return await runJobsCommand(global.args.slice(1), commandDependencies);

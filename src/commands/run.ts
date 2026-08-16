@@ -8,6 +8,7 @@ import type {
   WaitForJobOptions,
 } from "@mediaruntime/node";
 import { BundleDownloadError, UsageError } from "../errors.js";
+import type { ActivityIndicator } from "../ui/activity.js";
 
 const UNSUCCESSFUL_TERMINAL_STATUSES = new Set(["FAILED", "REJECTED", "PARTIAL"]);
 const OUTPUT_ALIASES = new Set([
@@ -30,6 +31,7 @@ export interface RunJobsClient {
 export interface RunCommandDependencies {
   jobs: RunJobsClient;
   writeStdout(text: string): void;
+  activity: ActivityIndicator;
   downloadBundle(
     url: string,
     destination: string,
@@ -193,39 +195,56 @@ export async function runCommand(
     ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
     ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
   };
-  const submitted = await dependencies.jobs.create(params);
-
-  if (!options.wait) {
-    if (options.json) dependencies.writeStdout(`${JSON.stringify(receiptProjection(submitted))}\n`);
-    else writeHumanReceipt(submitted, dependencies.writeStdout);
-    return UNSUCCESSFUL_TERMINAL_STATUSES.has(String(submitted.status).toUpperCase()) ? 6 : 0;
-  }
-
-  const details = await submitted.wait(
-    options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
+  const isLocalSource = !/^(?:https?|gs):\/\//i.test(options.source);
+  dependencies.activity.start(
+    isLocalSource ? "Uploading local source and creating job…" : "Creating job…",
   );
-  if (!options.json) writeHumanDetails(details, dependencies.writeStdout);
-  if (String(details.status).toUpperCase() !== "COMPLETED") {
+
+  try {
+    const submitted = await dependencies.jobs.create(params);
+
+    if (!options.wait) {
+      dependencies.activity.stop();
+      if (options.json) dependencies.writeStdout(`${JSON.stringify(receiptProjection(submitted))}\n`);
+      else writeHumanReceipt(submitted, dependencies.writeStdout);
+      return UNSUCCESSFUL_TERMINAL_STATUSES.has(String(submitted.status).toUpperCase()) ? 6 : 0;
+    }
+
+    dependencies.activity.update(`Waiting for job ${submitted.id} to complete…`);
+    const details = await submitted.wait(
+      options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs },
+    );
+    if (String(details.status).toUpperCase() !== "COMPLETED") {
+      dependencies.activity.stop();
+      if (!options.json) writeHumanDetails(details, dependencies.writeStdout);
+      if (options.json) dependencies.writeStdout(`${JSON.stringify(detailsProjection(details))}\n`);
+      return 6;
+    }
+    if (options.download) {
+      const url = details.bundle.downloadUrl;
+      if (!details.bundle.available || !url) {
+        throw new BundleDownloadError("Completed job does not have an available canonical bundle");
+      }
+      dependencies.activity.update("Downloading and verifying ZIP bundle…");
+      try {
+        await dependencies.downloadBundle(url, options.download, {
+          force: options.force,
+          expectedSizeBytes: details.bundle.sizeBytes,
+          expectedSha256: details.bundle.sha256,
+        });
+      } catch (error) {
+        if (error instanceof BundleDownloadError) throw error;
+        throw new BundleDownloadError(`Could not download bundle to ${options.download}`, { cause: error });
+      }
+    }
+    dependencies.activity.stop();
+    if (!options.json) {
+      writeHumanDetails(details, dependencies.writeStdout);
+      if (options.download) dependencies.writeStdout(`Downloaded bundle to ${options.download}\n`);
+    }
     if (options.json) dependencies.writeStdout(`${JSON.stringify(detailsProjection(details))}\n`);
-    return 6;
+    return 0;
+  } finally {
+    dependencies.activity.stop();
   }
-  if (options.download) {
-    const url = details.bundle.downloadUrl;
-    if (!details.bundle.available || !url) {
-      throw new BundleDownloadError("Completed job does not have an available canonical bundle");
-    }
-    try {
-      await dependencies.downloadBundle(url, options.download, {
-        force: options.force,
-        expectedSizeBytes: details.bundle.sizeBytes,
-        expectedSha256: details.bundle.sha256,
-      });
-    } catch (error) {
-      if (error instanceof BundleDownloadError) throw error;
-      throw new BundleDownloadError(`Could not download bundle to ${options.download}`, { cause: error });
-    }
-    if (!options.json) dependencies.writeStdout(`Downloaded bundle to ${options.download}\n`);
-  }
-  if (options.json) dependencies.writeStdout(`${JSON.stringify(detailsProjection(details))}\n`);
-  return 0;
 }

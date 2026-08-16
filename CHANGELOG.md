@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-08-16
+
+- Show an elapsed-time activity spinner during interactive local upload, job waiting,
+  and verified bundle download.
+- Keep progress on `stderr` and disable it for JSON and non-interactive execution.
+- Clarify that both relative and absolute local file paths are uploaded automatically.
+
 ## 0.2.0 — 2026-08-16
 
 - Add browser-assisted `login`, `auth status`, and revoking `logout` commands.

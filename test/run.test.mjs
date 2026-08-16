@@ -105,6 +105,57 @@ test("run passes local source and aliases through, waits, and downloads only the
   assert.doesNotMatch(output, /signed\.example|token=secret/);
 });
 
+test("interactive run shows upload, wait, and download activity without polluting stdout", async () => {
+  let stdout = "";
+  let stderr = "";
+  const code = await executeCli([
+    "run", "/Users/you/Videos/launch.mp4",
+    "--output", "video.streaming",
+    "--download", "./launch.zip",
+  ], {
+    createClient: () => ({
+      jobs: {
+        create: async () => submitted(),
+        list: async () => { throw new Error("not used"); },
+        get: async () => { throw new Error("not used"); },
+      },
+    }),
+    downloadBundle: async () => {},
+    writeStdout: (text) => { stdout += text; },
+    writeStderr: (text) => { stderr += text; },
+    isStderrTTY: true,
+  });
+
+  assert.equal(code, 0);
+  assert.match(stderr, /Uploading local source and creating job/);
+  assert.match(stderr, /Waiting for job job_run to complete/);
+  assert.match(stderr, /Downloading and verifying ZIP bundle/);
+  assert.match(stderr, /\u001b\[2K/);
+  assert.doesNotMatch(stdout, /⣋|⣙|Uploading|Waiting|Downloading and verifying/);
+  assert.match(stdout, /Downloaded bundle to \.\/launch\.zip/);
+});
+
+test("run activity is disabled for JSON and non-interactive output", async () => {
+  for (const [json, isStderrTTY] of [[true, true], [false, false]]) {
+    let stderr = "";
+    const args = ["run", "./launch.mp4", "--output", "video.web", "--wait"];
+    if (json) args.push("--json");
+    assert.equal(await executeCli(args, {
+      createClient: () => ({
+        jobs: {
+          create: async () => submitted(),
+          list: async () => { throw new Error("not used"); },
+          get: async () => { throw new Error("not used"); },
+        },
+      }),
+      writeStdout: () => {},
+      writeStderr: (text) => { stderr += text; },
+      isStderrTTY,
+    }), 0);
+    assert.equal(stderr, "");
+  }
+});
+
 test("run emits URL-redacted JSON and returns non-success for terminal failure", async () => {
   let output = "";
   let downloaded = false;

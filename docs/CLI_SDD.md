@@ -303,8 +303,11 @@ The process contract is designed for composition:
 ### Human format
 
 Human output is concise and may evolve cosmetically. It is not a parsing contract. Job
-IDs, statuses, cursors, paths, and HTTP status values remain literal. Waiting output must
-not invent percentages; the gateway supplies state, not continuous progress.
+IDs, statuses, cursors, paths, and HTTP status values remain literal. In an interactive
+terminal, `run` renders one elapsed-time spinner on `stderr` while uploading/submitting,
+waiting, and downloading/verifying. It clears the line before final output or errors.
+The indicator is disabled for `--json` and whenever `stderr` is not a TTY. Waiting output
+must not invent percentages; the gateway supplies state, not continuous progress.
 
 ### JSON format
 
