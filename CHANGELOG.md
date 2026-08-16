@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 — 2026-08-16
+
+- Add browser-assisted `login`, `auth status`, and revoking `logout` commands.
+- Store dedicated CLI credentials only in the operating-system credential vault.
+- Keep `MEDIARUNTIME_API_KEY` as the higher-priority permanent automation interface.
+- Bind the one-time exchange with PKCE and redact credentials from all CLI output.
+
 ## 0.1.0 — 2026-08-16
 
 - Add `run` with local uploads, frozen output aliases, safe waiting, and atomic canonical

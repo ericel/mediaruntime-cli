@@ -11,14 +11,25 @@ npm install --global @mediaruntime/cli
 mediaruntime --version
 ```
 
-Node.js 20 or newer is required. Authenticated commands read the API key from the
-environment; the hosted API URL is built in.
+Node.js 20 or newer is required. For interactive use, authorize through the browser once:
+
+```bash
+mediaruntime login
+mediaruntime auth status
+```
+
+The CLI stores its dedicated revocable key in the operating-system credential vault; it
+never writes the key to a plaintext configuration file. Use `mediaruntime logout` to
+revoke and remove it.
+
+For CI, servers, containers, and deliberate account overrides, continue setting:
 
 ```bash
 export MEDIARUNTIME_API_KEY="sk_..."
 ```
 
-Do not pass credentials as command-line arguments. `--base-url` and
+An explicit `MEDIARUNTIME_API_KEY` permanently remains supported and takes precedence
+over the stored login. Do not pass credentials as command-line arguments. `--base-url` and
 `MEDIARUNTIME_API_URL` are development/staging overrides, not normal client setup.
 
 ## Run a job
@@ -104,6 +115,7 @@ The full implementation contract is in [docs/CLI_SDD.md](docs/CLI_SDD.md).
 
 ## Scope
 
-The first release intentionally does not implement `listen`, `login`, credential storage,
-or a webhook relay. Production completion continues to use the account destination under
-Account → Webhooks. The ZIP remains the canonical completed-job result.
+The CLI does not implement `listen` or a webhook relay. Production completion continues
+to use the account destination under Account → Webhooks. The ZIP remains the canonical
+completed-job result. See [browser authentication](docs/AUTH.md) for the complete login,
+credential precedence, and security contract.

@@ -1,6 +1,6 @@
 # MediaRuntime CLI software design
 
-Status: implementation contract for the first public release
+Status: implementation contract through browser-auth release 0.2
 
 Package: `@mediaruntime/cli`
 
@@ -10,18 +10,22 @@ Runtime: Node.js 20 or newer
 
 ## 1. Decision summary
 
-The first CLI release is a thin, script-safe layer over the published
-`@mediaruntime/node` SDK. It ships four independently useful surfaces:
+The CLI is a thin, script-safe layer over the published `@mediaruntime/node` SDK. It
+ships the media commands plus an interactive authentication surface:
 
 ```text
 mediaruntime run <source> --output <alias>
 mediaruntime jobs list
 mediaruntime jobs get <job_id>
 mediaruntime trigger job.completed --to http://127.0.0.1:3000/webhooks/mediaruntime
+mediaruntime login
+mediaruntime auth status
+mediaruntime logout
 ```
 
 `run` and `jobs` use the same production API, authentication, local-file upload,
-idempotency, retry, error, and polling behavior as the Node SDK. `trigger` is entirely
+idempotency, retry, error, and polling behavior as the Node SDK. `login` authorizes a
+dedicated API key through the hosted browser flow defined in `docs/AUTH.md`. `trigger` is entirely
 local: it creates and signs a synthetic terminal webhook without contacting the
 MediaRuntime API.
 
@@ -38,6 +42,8 @@ engine directory layout.
 - Download the canonical ZIP safely without leaking credentials to the storage host.
 - Let a developer exercise their local webhook receiver with the production signing
   protocol and realistic terminal payloads.
+- Let interactive developers authorize in the browser and keep the resulting dedicated
+  credential in the operating-system vault without weakening environment-key automation.
 - Preserve the SDK and gateway as the authorities for request serialization, uploads,
   retries, aliases, status parsing, and API errors.
 
@@ -45,8 +51,8 @@ engine directory layout.
 
 - `mediaruntime listen` is not a v1 command. It requires a multi-tenant relay,
   authenticated connections, event ownership, expiry, rate limits, and an abuse model.
-- `mediaruntime login`, browser authentication, credential persistence, and profiles are
-  not v1 features. Authentication is non-interactive and environment-based.
+- Named multi-account profiles are deferred. Browser login stores one credential per API
+  origin; an explicit environment key remains the account override.
 - Batch submission, explicit output recipe editing, moderation, watermark management,
   webhook registration, media-report retrieval, and moderation-result retrieval remain
   available through the SDK/API but are not CLI v1 commands.
@@ -79,13 +85,14 @@ Authenticated commands resolve configuration once before doing file or network w
 
 | Setting | Highest precedence | Environment | Default |
 |---|---|---|---|
-| API key | none | `MEDIARUNTIME_API_KEY` | required for `run` and `jobs` |
+| API key | `MEDIARUNTIME_API_KEY` | OS-vault browser login | required for `run` and `jobs` |
 | API base URL | `--base-url <url>` | `MEDIARUNTIME_API_URL` | `https://mediaruntime.com` |
 | Webhook signing secret | `--secret-file <path>` | `MEDIARUNTIME_WEBHOOK_SECRET` | required by `trigger`, unless explicitly generated |
 
 There is deliberately no `--api-key` or `--secret` option: command-line arguments are
 visible in shell history and process listings. The CLI does not load `.env` files, write
-credentials, use an OS keychain, or search parent directories for configuration.
+plaintext credentials, or search parent directories for configuration. Browser login is
+stored only in the platform credential vault; machines without one use the environment.
 
 `--base-url` exists for a local gateway, staging, and deterministic tests; ordinary users
 must not need it. It must be an absolute HTTP(S) origin with no credentials, query, or
@@ -341,7 +348,7 @@ results and must not invent conflicting mappings.
 | `4` | Non-retryable API outcome such as `400`, `404`, `409`, `410`, `413`, or `422`, or exhausted `429` |
 | `5` | Connection/HTTP timeout or exhausted retryable `5xx` response |
 | `6` | A submitted or inspected job is terminal `FAILED`, `REJECTED`, or `PARTIAL` |
-| `7` | `run --wait` exceeded its wait timeout |
+| `7` | Job waiting or browser authorization exceeded its bounded timeout |
 | `8` | Local trigger endpoint returned a redirect or non-`2xx` response |
 | `9` | Bundle availability, redemption, integrity, or filesystem failure |
 | `130` | Interrupted by `SIGINT`; in-flight fetch/poll/download is aborted and temporary files are removed |
@@ -356,7 +363,8 @@ endpoint that refuses the event is `8`.
 ## 10. Security rules
 
 - Never accept API keys or webhook secrets as ordinary command arguments.
-- Never persist credentials or generated secrets.
+- Persist browser-login credentials only in the operating-system credential vault; never
+  fall back to a plaintext file.
 - Redact credentials and signed query strings from errors and debug output.
 - Treat JSON output containing metadata as caller-sensitive even though signed bundle URLs
   are deliberately omitted.
@@ -382,6 +390,10 @@ src/cli.ts                 argv dispatch, configuration, signals, exit/error ren
 src/commands/run.ts        run parsing and SDK orchestration
 src/commands/jobs.ts       list/get parsing and projections
 src/commands/trigger.ts    local event orchestration
+src/commands/auth.ts       login/status/logout orchestration and precedence
+src/auth/api.ts            one-time browser authorization protocol
+src/auth/credential-store.ts OS credential-vault boundary
+src/auth/browser.ts        shell-free browser launcher
 src/download.ts            streamed atomic bundle redemption
 src/trigger/event.ts       synthetic public payloads
 src/trigger/signature.ts   byte signing and headers
@@ -398,10 +410,24 @@ production credentials, billable jobs, real storage, or listening ports.
 
 - Every documented command/flag combination parses; unknown flags and extra positionals
   exit `2` before network access.
-- Missing/blank API key fails `run` and `jobs`; `trigger` never reads it.
+- Missing/blank environment key falls back to the OS-vault login; when both are absent,
+  `run` and `jobs` fail while `trigger` remains independent.
 - `--base-url` overrides the environment, which overrides production; invalid or insecure
   non-loopback HTTP URLs fail closed.
-- No command accepts `--api-key`, `--secret`, a per-job webhook URL, `listen`, or `login`.
+- No command accepts `--api-key`, `--secret`, a per-job webhook URL, or `listen`.
+
+### Browser authentication
+
+- `login` sends only a PKCE challenge, opens the returned MediaRuntime authorization URL,
+  polls at the server-provided interval, and never prints the issued API key.
+- Approval requires the existing verified Firebase identity, active owner/admin account
+  membership, active billing, available funds, and an explicit matching-code consent.
+- The browser and Firestore never receive the raw CLI API key or PKCE verifier.
+- A successful exchange creates exactly one dedicated CLI key across concurrent polls and
+  lost responses, then stores it only in the OS credential vault.
+- `auth status` reports source/account/key metadata without secret material.
+- `logout` revokes the dedicated key before deleting it; `--local-only` is explicit.
+- `MEDIARUNTIME_API_KEY` takes precedence and remains supported for automation.
 
 ### Run
 
@@ -463,4 +489,5 @@ The v1 package is ready only when:
    account and produces a valid ZIP.
 5. A local receiver using `@mediaruntime/node` verification accepts every trigger type and
    rejects a changed body, stale timestamp, and wrong secret.
-6. Documentation labels `listen` and `login` as deferred rather than advertising stubs.
+6. Browser login passes a production create/approve/exchange/status/logout smoke test;
+   documentation labels only `listen` as deferred.

@@ -18,6 +18,15 @@ import {
   MediaRuntimeApiError,
   MediaRuntimeConnectionError,
 } from "@mediaruntime/node";
+import { PRODUCTION_ORIGIN } from "./auth/api.js";
+import type { CredentialStore } from "./auth/credential-store.js";
+import {
+  resolveCredential,
+  runAuthCommand,
+  runLoginCommand,
+  runLogoutCommand,
+  type AuthCommandDependencies,
+} from "./commands/auth.js";
 import {
   runJobsCommand,
   type JobsReadClient,
@@ -33,8 +42,15 @@ import { isLoopbackDestination } from "./trigger/destination.js";
 export { parseTriggerArguments, runTriggerCommand } from "./commands/trigger.js";
 export { createSyntheticTerminalEvent } from "./trigger/event.js";
 export { signSyntheticWebhook } from "./trigger/signature.js";
+export {
+  resolveCredential,
+  runAuthCommand,
+  runAuthStatusCommand,
+  runLoginCommand,
+  runLogoutCommand,
+} from "./commands/auth.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 const HELP = `MediaRuntime CLI
 
 Usage:
@@ -42,6 +58,9 @@ Usage:
   mediaruntime jobs list [--status <status>] [--limit <n>] [--cursor <cursor>]
   mediaruntime jobs get <job_id> [--download <bundle.zip>] [--force]
   mediaruntime trigger <job.completed|job.failed|job.rejected> --to <local-url>
+  mediaruntime login [--no-browser]
+  mediaruntime auth status
+  mediaruntime logout [--local-only]
 
 Global options:
   --base-url <url>  Developer override; normally leave unset
@@ -51,7 +70,7 @@ Global options:
 Run/jobs options:
   --json            Machine-readable, URL-redacted output
 
-Authentication uses MEDIARUNTIME_API_KEY.
+Authentication uses a secure login or MEDIARUNTIME_API_KEY.
 `;
 
 type CliJobsClient = RunJobsClient & JobsReadClient;
@@ -61,7 +80,7 @@ export interface CliClient {
 }
 
 export interface CliDependencies {
-  createClient?(options: { baseUrl?: string }): CliClient;
+  createClient?(options: { baseUrl?: string; apiKey?: string }): CliClient;
   downloadBundle?(
     url: string,
     destination: string,
@@ -73,6 +92,11 @@ export interface CliDependencies {
   ): Promise<void>;
   writeStdout?(text: string): void;
   writeStderr?(text: string): void;
+  credentialStore?: CredentialStore;
+  openBrowser?(url: string): Promise<void>;
+  sleep?(milliseconds: number): Promise<void>;
+  now?(): number;
+  randomVerifier?(): string;
 }
 
 function isFileExistsError(error: unknown): boolean {
@@ -252,12 +276,33 @@ export async function executeCli(
 
     const configuredBaseUrl = global.baseUrl ?? process.env.MEDIARUNTIME_API_URL;
     const baseUrl = configuredBaseUrl ? normalizeBaseUrl(configuredBaseUrl) : undefined;
-    if (!dependencies.createClient && !process.env.MEDIARUNTIME_API_KEY?.trim()) {
-      throw new UsageError("Set MEDIARUNTIME_API_KEY before using run or jobs");
+    const authBaseUrl = baseUrl ?? PRODUCTION_ORIGIN;
+    const authDependencies: AuthCommandDependencies = {
+      ...(dependencies.credentialStore ? { credentialStore: dependencies.credentialStore } : {}),
+      ...(dependencies.openBrowser ? { openBrowser: dependencies.openBrowser } : {}),
+      ...(dependencies.sleep ? { sleep: dependencies.sleep } : {}),
+      ...(dependencies.now ? { now: dependencies.now } : {}),
+      ...(dependencies.randomVerifier ? { randomVerifier: dependencies.randomVerifier } : {}),
+      writeStdout,
+    };
+    if (command === "login") return await runLoginCommand(global.args.slice(1), authBaseUrl, authDependencies);
+    if (command === "auth") return await runAuthCommand(global.args.slice(1), authBaseUrl, authDependencies);
+    if (command === "logout") return await runLogoutCommand(global.args.slice(1), authBaseUrl, authDependencies);
+
+    let apiKey = process.env.MEDIARUNTIME_API_KEY?.trim();
+    if (!apiKey && (!dependencies.createClient || dependencies.credentialStore)) {
+      apiKey = (await resolveCredential(authBaseUrl, authDependencies))?.apiKey;
+    }
+    if (!dependencies.createClient && !apiKey) {
+      throw new UsageError("Run mediaruntime login or set MEDIARUNTIME_API_KEY before using run or jobs");
     }
     const client = dependencies.createClient?.({
       ...(baseUrl === undefined ? {} : { baseUrl }),
-    }) ?? new MediaRuntime({ ...(baseUrl === undefined ? {} : { baseUrl }) });
+      ...(apiKey === undefined ? {} : { apiKey }),
+    }) ?? new MediaRuntime({
+      ...(baseUrl === undefined ? {} : { baseUrl }),
+      ...(apiKey === undefined ? {} : { apiKey }),
+    });
     const downloadBundle = dependencies.downloadBundle ?? downloadBundleAtomically;
     const commandDependencies = { jobs: client.jobs, writeStdout, downloadBundle };
     if (command === "run") return await runCommand(global.args.slice(1), commandDependencies);
