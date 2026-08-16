@@ -1,0 +1,68 @@
+{
+  "name": "@mediaruntime/cli",
+  "version": "0.1.0",
+  "description": "Official command-line client for MediaRuntime",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "mediaruntime": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/cli.d.ts",
+      "import": "./dist/cli.js"
+    }
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsup",
+    "check": "tsc --noEmit",
+    "pretest": "npm run build",
+    "test": "node --test test/*.test.mjs",
+    "prepack": "npm run check && npm test"
+  },
+  "dependencies": {
+    "@mediaruntime/node": "^0.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ericel/mediaruntime-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ericel/mediaruntime-cli/issues"
+  },
+  "homepage": "https://github.com/ericel/mediaruntime-cli#readme",
+  "keywords": [
+    "mediaruntime",
+    "transcoding",
+    "video",
+    "audio",
+    "cli"
+  ],
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "author": ""
+}
