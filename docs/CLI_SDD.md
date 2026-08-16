@@ -1,12 +1,12 @@
 # MediaRuntime CLI software design
 
-Status: implementation contract through browser-auth release 0.2
+Status: stable public contract released as `1.0.0`
 
 Package: `@mediaruntime/cli`
 
 Executable: `mediaruntime`
 
-Runtime: Node.js 20 or newer
+Runtime: Node.js 22 or newer
 
 ## 1. Decision summary
 
@@ -482,9 +482,9 @@ production credentials, billable jobs, real storage, or listening ports.
 
 ## 13. Release gates
 
-The v1 package is ready only when:
+The v1 release gates are:
 
-1. Type checking, unit tests, package smoke tests, and Node 20/22 CI pass.
+1. Type checking, unit tests, package smoke tests, and Node 22/24 CI pass.
 2. A packed tarball installs and exposes the `mediaruntime` executable with a valid
    shebang and no development fixtures.
 3. Contract tests use the released Node SDK's gateway fixtures for aliases and statuses.

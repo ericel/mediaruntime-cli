@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0 — 2026-08-16
+
+- Declare the documented CLI surface stable under semantic versioning, including command
+  names, flags, JSON envelopes, exit codes, and credential precedence.
+- Require supported Node.js 22 or newer runtimes and depend on `@mediaruntime/node` 1.x.
+- Point legacy package tooling at the shipped executable instead of a nonexistent entry.
+- Freeze local upload, browser authentication, job inspection, atomic ZIP download,
+  interactive progress, and loopback webhook-trigger behavior as the v1 contract.
+
 ## 0.2.1 — 2026-08-16
 
 - Show an elapsed-time activity spinner during interactive local upload, job waiting,

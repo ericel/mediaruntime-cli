@@ -5,7 +5,7 @@ import { test } from "node:test";
 test("release metadata accepts the matching stable tag", () => {
   const result = spawnSync(process.execPath, ["scripts/release-metadata.mjs"], {
     cwd: process.cwd(),
-    env: { ...process.env, GITHUB_REF_NAME: "v0.2.1" },
+    env: { ...process.env, GITHUB_REF_NAME: "v1.0.0" },
     encoding: "utf8",
   });
   assert.equal(result.status, 0, result.stderr);

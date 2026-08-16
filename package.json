@@ -1,6 +1,6 @@
 {
   "name": "@mediaruntime/cli",
-  "version": "0.2.1",
+  "version": "1.0.0",
   "description": "Official command-line client for MediaRuntime",
   "license": "MIT",
   "type": "module",
@@ -21,7 +21,7 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "scripts": {
     "build": "tsup",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@napi-rs/keyring": "^1.3.0",
-    "@mediaruntime/node": "^0.2.5"
+    "@mediaruntime/node": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
@@ -60,10 +60,5 @@
     "audio",
     "cli"
   ],
-  "main": "index.js",
-  "directories": {
-    "doc": "docs",
-    "test": "test"
-  },
-  "author": ""
+  "main": "./dist/cli.js"
 }

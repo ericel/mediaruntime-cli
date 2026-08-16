@@ -51,7 +51,7 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "0.2.1";
+const VERSION = "1.0.0";
 const HELP = `MediaRuntime CLI
 
 Usage:

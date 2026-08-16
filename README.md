@@ -4,6 +4,10 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
+Status: stable `1.0.0`. The documented `1.x` command names, flags, JSON envelopes, exit
+codes, and credential precedence follow semantic versioning. Breaking changes require a
+new major version; additive commands and fields may ship in minor releases.
+
 ## Install
 
 ```bash
@@ -11,7 +15,7 @@ npm install --global @mediaruntime/cli
 mediaruntime --version
 ```
 
-Node.js 20 or newer is required. For interactive use, authorize through the browser once:
+Node.js 22 or newer is required. For interactive use, authorize through the browser once:
 
 ```bash
 mediaruntime login
