@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.0 — 2026-08-18
+
+- Add unauthenticated `capabilities` and `presets list` discovery commands backed by the
+  live gateway contract.
+- Add repeated `--preset <public-preset>` execution while preserving `-o` and `--output`
+  for the six frozen aliases.
+- Resolve preset output types from the gateway's ordered public catalog instead of
+  copying engine preset metadata into the CLI.
+- Upgrade to `@mediaruntime/node` 1.1.1 capability contracts.
+
 ## 1.0.0 — 2026-08-16
 
 - Declare the documented CLI surface stable under semantic versioning, including command

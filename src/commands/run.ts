@@ -1,4 +1,5 @@
 import type {
+  Capabilities,
   CreateJobParams,
   JobDetails,
   JobOutput,
@@ -7,6 +8,7 @@ import type {
   OutputAlias,
   WaitForJobOptions,
 } from "@mediaruntime/node";
+import type { CapabilitiesReadClient } from "./capabilities.js";
 import { BundleDownloadError, UsageError } from "../errors.js";
 import type { ActivityIndicator } from "../ui/activity.js";
 
@@ -30,6 +32,7 @@ export interface RunJobsClient {
 
 export interface RunCommandDependencies {
   jobs: RunJobsClient;
+  capabilities: CapabilitiesReadClient;
   writeStdout(text: string): void;
   activity: ActivityIndicator;
   downloadBundle(
@@ -41,7 +44,7 @@ export interface RunCommandDependencies {
 
 interface RunOptions {
   source: string;
-  outputs: string[];
+  outputs: Array<{ kind: "alias" | "preset"; value: string }>;
   metadata?: Metadata;
   idempotencyKey?: string;
   wait: boolean;
@@ -72,7 +75,7 @@ function parseMetadata(value: string): Metadata {
 
 function parseRunOptions(args: string[]): RunOptions {
   let source: string | undefined;
-  const outputs: string[] = [];
+  const outputs: RunOptions["outputs"] = [];
   let metadata: Metadata | undefined;
   let idempotencyKey: string | undefined;
   let wait = false;
@@ -84,7 +87,10 @@ function parseRunOptions(args: string[]): RunOptions {
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index];
     if (argument === "--output" || argument === "-o") {
-      outputs.push(optionValue(args, index, argument));
+      outputs.push({ kind: "alias", value: optionValue(args, index, argument) });
+      index += 1;
+    } else if (argument === "--preset") {
+      outputs.push({ kind: "preset", value: optionValue(args, index, argument) });
       index += 1;
     } else if (argument === "--metadata") {
       metadata = parseMetadata(optionValue(args, index, argument));
@@ -118,10 +124,14 @@ function parseRunOptions(args: string[]): RunOptions {
     }
   }
 
-  if (!source) throw new UsageError("Usage: mediaruntime run <source> --output <alias> [--wait]");
-  if (outputs.length === 0) throw new UsageError("run requires at least one --output");
-  const unsupported = outputs.find((output) => !OUTPUT_ALIASES.has(output));
-  if (unsupported) throw new UsageError(`Unsupported output alias: ${unsupported}`);
+  if (!source) {
+    throw new UsageError("Usage: mediaruntime run <source> (--output <alias> | --preset <name>) [--wait]");
+  }
+  if (outputs.length === 0) throw new UsageError("run requires at least one --output or --preset");
+  const unsupported = outputs.find(
+    (output) => output.kind === "alias" && !OUTPUT_ALIASES.has(output.value),
+  );
+  if (unsupported) throw new UsageError(`Unsupported output alias: ${unsupported.value}`);
   if (force && !download) throw new UsageError("--force requires --download");
   if (timeoutMs !== undefined && !wait) throw new UsageError("--timeout-ms requires --wait or --download");
   return {
@@ -135,6 +145,25 @@ function parseRunOptions(args: string[]): RunOptions {
     force,
     json,
   };
+}
+
+async function resolveOutputs(
+  selections: RunOptions["outputs"],
+  capabilitiesClient: CapabilitiesReadClient,
+): Promise<Array<OutputAlias | JobOutput>> {
+  if (!selections.some((selection) => selection.kind === "preset")) {
+    return selections.map((selection) => selection.value as OutputAlias);
+  }
+  const capabilities: Capabilities = await capabilitiesClient.retrieve();
+  const publicPresets = new Set(capabilities.publicPresets);
+  return selections.map((selection) => {
+    if (selection.kind === "alias") return selection.value as OutputAlias;
+    const preset = capabilities.presets[selection.value];
+    if (!publicPresets.has(selection.value) || !preset) {
+      throw new UsageError(`Unknown or non-public preset: ${selection.value}`);
+    }
+    return { type: preset.outputType, preset: selection.value };
+  });
 }
 
 function receiptProjection(job: SubmittedJob): JobReceiptData {
@@ -189,9 +218,10 @@ export async function runCommand(
   dependencies: RunCommandDependencies,
 ): Promise<number> {
   const options = parseRunOptions(args);
+  const outputs = await resolveOutputs(options.outputs, dependencies.capabilities);
   const params: CreateJobParams = {
     source: options.source,
-    outputs: options.outputs as Array<OutputAlias | JobOutput>,
+    outputs,
     ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
     ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
   };

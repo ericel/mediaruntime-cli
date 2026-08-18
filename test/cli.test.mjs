@@ -191,7 +191,7 @@ test("npm-style binary symlink executes the CLI entrypoint", async () => {
     await symlink(resolve("dist/cli.js"), binary);
     const result = spawnSync(binary, ["--version"], { encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(result.stdout, "1.0.0\n");
+    assert.equal(result.stdout, "1.1.0\n");
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

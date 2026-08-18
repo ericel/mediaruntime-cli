@@ -227,6 +227,80 @@ test("run accepts exactly the six frozen aliases and rejects unknown aliases loc
   assert.deepEqual(forwarded, aliases);
 });
 
+test("run resolves public presets to explicit output objects and preserves selection order", async () => {
+  let createParams;
+  let capabilityReads = 0;
+  const code = await executeCli([
+    "run", "./video.mp4",
+    "--output", "video.web",
+    "--preset", "dash_ladder_v1",
+    "--preset", "webm_vp9_1080p",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => {
+          capabilityReads += 1;
+          return {
+            publicPresets: ["dash_ladder_v1", "webm_vp9_1080p"],
+            presets: {
+              dash_ladder_v1: { outputType: "dash" },
+              webm_vp9_1080p: { outputType: "webm" },
+            },
+          };
+        },
+      },
+      jobs: {
+        create: async (params) => {
+          createParams = params;
+          return submitted();
+        },
+        list: async () => { throw new Error("not used"); },
+        get: async () => { throw new Error("not used"); },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.equal(capabilityReads, 1);
+  assert.deepEqual(createParams.outputs, [
+    "video.web",
+    { type: "dash", preset: "dash_ladder_v1" },
+    { type: "webm", preset: "webm_vp9_1080p" },
+  ]);
+});
+
+test("run rejects presets outside the gateway public catalog", async () => {
+  let requested = false;
+  let error = "";
+  const code = await executeCli([
+    "run", "./video.mp4", "--preset", "internal_experimental_v1",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["dash_ladder_v1"],
+          presets: {
+            dash_ladder_v1: { outputType: "dash" },
+            internal_experimental_v1: { outputType: "mp4" },
+          },
+        }),
+      },
+      jobs: {
+        create: async () => { requested = true; throw new Error("must not run"); },
+        list: async () => { throw new Error("not used"); },
+        get: async () => { throw new Error("not used"); },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { error += text; },
+  });
+  assert.equal(code, 2);
+  assert.equal(requested, false);
+  assert.match(error, /Unknown or non-public preset/);
+});
+
 test("run rejects timeout without wait or download", async () => {
   let requested = false;
   let error = "";

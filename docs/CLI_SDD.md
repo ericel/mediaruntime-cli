@@ -1,6 +1,6 @@
 # MediaRuntime CLI software design
 
-Status: stable public contract released as `1.0.0`
+Status: stable public contract released as `1.1.0`
 
 Package: `@mediaruntime/cli`
 
@@ -15,6 +15,9 @@ ships the media commands plus an interactive authentication surface:
 
 ```text
 mediaruntime run <source> --output <alias>
+mediaruntime run <source> --preset <public-preset>
+mediaruntime capabilities
+mediaruntime presets list
 mediaruntime jobs list
 mediaruntime jobs get <job_id>
 mediaruntime trigger job.completed --to http://127.0.0.1:3000/webhooks/mediaruntime
@@ -53,9 +56,10 @@ engine directory layout.
   authenticated connections, event ownership, expiry, rate limits, and an abuse model.
 - Named multi-account profiles are deferred. Browser login stores one credential per API
   origin; an explicit environment key remains the account override.
-- Batch submission, explicit output recipe editing, moderation, watermark management,
+- Batch submission, custom output recipe editing, moderation, watermark management,
   webhook registration, media-report retrieval, and moderation-result retrieval remain
-  available through the SDK/API but are not CLI v1 commands.
+  available through the SDK/API but are not CLI v1 commands. Named public presets are
+  supported through `--preset`; arbitrary output objects remain deferred.
 - The CLI does not accept a per-job webhook URL. Terminal events go to the account-level
   destination configured in the MediaRuntime profile.
 - ZIP extraction, artifact selectors, HLS serving, and indefinite bundle retention are
@@ -67,6 +71,7 @@ The implementation depends on the released Node SDK and must not copy its HTTP c
 The following published contracts govern the CLI:
 
 - Node SDK `MediaRuntime`, `jobs.create`, `jobs.list`, `jobs.get`, and `Job.wait`.
+- Node SDK `capabilities.retrieve()` and its ordered `publicPresets` catalog.
 - Gateway `contracts/v1/openapi.json` and `contracts/v1/conformance.json`.
 - Frozen output aliases: `video.web`, `video.streaming`, `video.social`, `audio.web`,
   `audio.transcription`, and `image.web`.
@@ -85,7 +90,7 @@ Authenticated commands resolve configuration once before doing file or network w
 
 | Setting | Highest precedence | Environment | Default |
 |---|---|---|---|
-| API key | `MEDIARUNTIME_API_KEY` | OS-vault browser login | required for `run` and `jobs` |
+| API key | `MEDIARUNTIME_API_KEY` | OS-vault browser login | required for `run` and `jobs`; not required for capability discovery |
 | API base URL | `--base-url <url>` | `MEDIARUNTIME_API_URL` | `https://mediaruntime.com` |
 | Webhook signing secret | `--secret-file <path>` | `MEDIARUNTIME_WEBHOOK_SECRET` | required by `trigger`, unless explicitly generated |
 
@@ -110,7 +115,8 @@ mediaruntime --base-url http://127.0.0.1:8001 jobs list
 ### 5.1 `run`
 
 ```text
-mediaruntime run <source> --output <alias> [--output <alias> ...]
+mediaruntime run <source>
+  (--output <alias> | --preset <public-preset>) [...]
   [--metadata <json-object>]
   [--idempotency-key <key>]
   [--wait]
@@ -119,12 +125,14 @@ mediaruntime run <source> --output <alias> [--output <alias> ...]
   [--json]
 ```
 
-`-o` is the short spelling of `--output`. Exactly one source and at least one output are
+`-o` is the short spelling of `--output`. Exactly one source and at least one output or preset are
 required. `<source>` may be an HTTP(S) URL, `gs://` URI, local path, or `file://` URL. The
 CLI passes it to the SDK so local inputs use the SDK's signed-upload flow.
 
-Each `--output` must be one of the six frozen aliases. Repeating the option preserves the
-caller order. Explicit output objects and batch inputs are intentionally deferred from
+Each `--output` must be one of the six frozen aliases. Each `--preset` must appear in the
+gateway's ordered `publicPresets` catalog; the CLI retrieves its output type and submits
+the corresponding explicit output object. Repeating and mixing both options preserves
+caller order. Custom output objects and batch inputs remain intentionally deferred from
 the quick CLI; use an SDK when that control is required.
 
 `--metadata` is one JSON object, for example:
@@ -152,9 +160,26 @@ mediaruntime run ./launch.mp4 \
   --metadata '{"asset_id":"launch-01"}' \
   --idempotency-key 'asset:launch-01:v1' \
   --download ./launch-01.zip
+
+mediaruntime run ./launch.mp4 \
+  --preset dash_ladder_v1 --preset webm_vp9_1080p \
+  --download ./adaptive-and-vp9.zip
 ```
 
-### 5.2 `jobs list`
+### 5.2 Capability and preset discovery
+
+```text
+mediaruntime capabilities [--json]
+mediaruntime presets list [--json]
+```
+
+Both commands call the unauthenticated capability endpoint and therefore do not require
+a browser login or `MEDIARUNTIME_API_KEY`. Human output summarizes aliases, optional
+features, and the ordered public preset table. JSON uses the Node SDK's camelCase contract;
+`presets list --json` returns `{presets: [...]}` in gateway order. Neither command infers
+public availability from the broader internal preset map.
+
+### 5.3 `jobs list`
 
 ```text
 mediaruntime jobs list
@@ -173,7 +198,7 @@ The human table columns are `ID`, `STATUS`, `TIER`, `UNITS`, `BUNDLE`, and `UPDA
 List rows intentionally have no bundle download URL; `jobs get` is the download-aware
 surface.
 
-### 5.3 `jobs get`
+### 5.4 `jobs get`
 
 ```text
 mediaruntime jobs get <job_id>
@@ -320,6 +345,8 @@ surface.
 - `run --wait` and `jobs get`: curated job details, with bundle availability,
   `expiresAt`, `sizeBytes`, `sha256`, and `retentionDays`, but no `downloadUrl`.
 - `jobs list`: `{jobs, nextCursor}` from the SDK.
+- `capabilities`: the complete SDK capability projection.
+- `presets list`: `{presets: [...]}` containing only ordered public preset rows.
 - `trigger`: `{eventId, type, jobId, status, destination, httpStatus}`.
 
 If `--download` is used, a successful atomic download is required before exit `0`. The

@@ -4,7 +4,7 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
-Status: stable `1.0.0`. The documented `1.x` command names, flags, JSON envelopes, exit
+Status: stable `1.1.0`. The documented `1.x` command names, flags, JSON envelopes, exit
 codes, and credential precedence follow semantic versioning. Breaking changes require a
 new major version; additive commands and fields may ship in minor releases.
 
@@ -68,6 +68,24 @@ Supported frozen output aliases:
 - `audio.web`
 - `audio.transcription`
 - `image.web`
+
+Discover the live public catalog without signing in, then select an explicit preset when
+an alias is not specific enough:
+
+```bash
+mediaruntime capabilities
+mediaruntime presets list
+mediaruntime presets list --json
+
+mediaruntime run ./launch.mp4 \
+  --preset dash_ladder_v1 \
+  --preset webm_vp9_1080p \
+  --download ./adaptive-and-vp9.zip
+```
+
+`--preset` accepts only IDs in the gateway's current `publicPresets` catalog. The CLI
+retrieves the catalog and supplies the preset's required output type automatically. Alias
+and preset selections may be mixed and repeated in one command.
 
 Use `--json` for one compact, URL-redacted machine-readable result. A caller-provided
 `--idempotency-key` remains the durable deduplication mechanism across process restarts;

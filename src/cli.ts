@@ -28,6 +28,11 @@ import {
   type AuthCommandDependencies,
 } from "./commands/auth.js";
 import {
+  runCapabilitiesCommand,
+  runPresetsCommand,
+  type CapabilitiesReadClient,
+} from "./commands/capabilities.js";
+import {
   runJobsCommand,
   type JobsReadClient,
 } from "./commands/jobs.js";
@@ -51,11 +56,13 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "1.0.0";
+const VERSION = "1.1.0";
 const HELP = `MediaRuntime CLI
 
 Usage:
-  mediaruntime run <source> --output <alias> [--output <alias>] [--wait]
+  mediaruntime run <source> (--output <alias> | --preset <name>) [...] [--wait]
+  mediaruntime capabilities [--json]
+  mediaruntime presets list [--json]
   mediaruntime jobs list [--status <status>] [--limit <n>] [--cursor <cursor>]
   mediaruntime jobs get <job_id> [--download <bundle.zip>] [--force]
   mediaruntime trigger <job.completed|job.failed|job.rejected> --to <local-url>
@@ -78,6 +85,7 @@ type CliJobsClient = RunJobsClient & JobsReadClient;
 
 export interface CliClient {
   jobs: CliJobsClient;
+  capabilities: CapabilitiesReadClient;
 }
 
 export interface CliDependencies {
@@ -293,6 +301,19 @@ export async function executeCli(
     if (command === "auth") return await runAuthCommand(global.args.slice(1), authBaseUrl, authDependencies);
     if (command === "logout") return await runLogoutCommand(global.args.slice(1), authBaseUrl, authDependencies);
 
+    if (command === "capabilities" || command === "presets") {
+      const publicClient = dependencies.createClient?.({
+        ...(baseUrl === undefined ? {} : { baseUrl }),
+      }) ?? new MediaRuntime({
+        ...(baseUrl === undefined ? {} : { baseUrl }),
+      });
+      const publicDependencies = { capabilities: publicClient.capabilities, writeStdout };
+      if (command === "capabilities") {
+        return await runCapabilitiesCommand(global.args.slice(1), publicDependencies);
+      }
+      return await runPresetsCommand(global.args.slice(1), publicDependencies);
+    }
+
     let apiKey = process.env.MEDIARUNTIME_API_KEY?.trim();
     if (!apiKey && (!dependencies.createClient || dependencies.credentialStore)) {
       apiKey = (await resolveCredential(authBaseUrl, authDependencies))?.apiKey;
@@ -310,6 +331,7 @@ export async function executeCli(
     const downloadBundle = dependencies.downloadBundle ?? downloadBundleAtomically;
     const commandDependencies = {
       jobs: client.jobs,
+      capabilities: client.capabilities,
       writeStdout,
       downloadBundle,
       activity: createActivityIndicator(writeStderr, isStderrTTY && !json),

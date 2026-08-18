@@ -1,6 +1,6 @@
 {
   "name": "@mediaruntime/cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Official command-line client for MediaRuntime",
   "license": "MIT",
   "type": "module",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@napi-rs/keyring": "^1.3.0",
-    "@mediaruntime/node": "^1.0.0"
+    "@mediaruntime/node": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
