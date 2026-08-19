@@ -39,6 +39,7 @@ function detailsProjection(job: JobDetails): Record<string, unknown> {
       retentionDays: job.bundle.retentionDays,
     },
     media: job.media,
+    recipe: job.recipe,
     metadata: job.metadata,
     error: job.error,
     createdAt: job.createdAt,

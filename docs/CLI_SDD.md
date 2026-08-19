@@ -1,6 +1,6 @@
 # MediaRuntime CLI software design
 
-Status: stable public contract released as `1.1.0`
+Status: stable public contract released as `1.2.0`
 
 Package: `@mediaruntime/cli`
 
@@ -18,6 +18,11 @@ mediaruntime run <source> --output <alias>
 mediaruntime run <source> --preset <public-preset>
 mediaruntime capabilities
 mediaruntime presets list
+mediaruntime recipes list
+mediaruntime recipes get <name>
+mediaruntime recipes create --file <recipe.json>
+mediaruntime recipes version <name> --file <recipe.json> --expected <version>
+mediaruntime recipes archive <name>
 mediaruntime jobs list
 mediaruntime jobs get <job_id>
 mediaruntime trigger job.completed --to http://127.0.0.1:3000/webhooks/mediaruntime
@@ -56,7 +61,7 @@ engine directory layout.
   authenticated connections, event ownership, expiry, rate limits, and an abuse model.
 - Named multi-account profiles are deferred. Browser login stores one credential per API
   origin; an explicit environment key remains the account override.
-- Batch submission, custom output recipe editing, moderation, watermark management,
+- Batch submission, arbitrary inline output-object editing, moderation, watermark management,
   webhook registration, media-report retrieval, and moderation-result retrieval remain
   available through the SDK/API but are not CLI v1 commands. Named public presets are
   supported through `--preset`; arbitrary output objects remain deferred.
@@ -164,6 +169,10 @@ mediaruntime run ./launch.mp4 \
 mediaruntime run ./launch.mp4 \
   --preset dash_ladder_v1 --preset webm_vp9_1080p \
   --download ./adaptive-and-vp9.zip
+
+mediaruntime run ./launch.mp4 \
+  --recipe team-video@3 \
+  --download ./launch.zip
 ```
 
 ### 5.2 Capability and preset discovery
@@ -179,7 +188,15 @@ features, and the ordered public preset table. JSON uses the Node SDK's camelCas
 `presets list --json` returns `{presets: [...]}` in gateway order. Neither command infers
 public availability from the broader internal preset map.
 
-### 5.3 `jobs list`
+### 5.3 Hosted recipes
+
+`recipes list/get/create/version/archive` delegates to the Node SDK recipe resource.
+Create and version commands read explicit JSON files; secrets are never accepted in a
+recipe or printed. `version --expected` is the optimistic-lock precondition. `run
+--recipe` is mutually exclusive with aliases and public presets, and a resolved recipe
+uses the same job wait, exit, spinner, and atomic ZIP path as any other job.
+
+### 5.4 `jobs list`
 
 ```text
 mediaruntime jobs list
@@ -198,7 +215,7 @@ The human table columns are `ID`, `STATUS`, `TIER`, `UNITS`, `BUNDLE`, and `UPDA
 List rows intentionally have no bundle download URL; `jobs get` is the download-aware
 surface.
 
-### 5.4 `jobs get`
+### 5.5 `jobs get`
 
 ```text
 mediaruntime jobs get <job_id>

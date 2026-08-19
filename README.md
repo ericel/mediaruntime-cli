@@ -4,7 +4,7 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
-Status: stable `1.1.0`. The documented `1.x` command names, flags, JSON envelopes, exit
+Status: stable `1.2.0`. The documented `1.x` command names, flags, JSON envelopes, exit
 codes, and credential precedence follow semantic versioning. Breaking changes require a
 new major version; additive commands and fields may ship in minor releases.
 
@@ -86,6 +86,33 @@ mediaruntime run ./launch.mp4 \
 `--preset` accepts only IDs in the gateway's current `publicPresets` catalog. The CLI
 retrieves the catalog and supplies the preset's required output type automatically. Alias
 and preset selections may be mixed and repeated in one command.
+
+## Hosted recipes
+
+Hosted recipes are immutable account-scoped versions of a complete outputs, moderation,
+and watermark policy. Discover the built-ins and your team's custom recipes, then run one
+without copying configuration:
+
+```bash
+mediaruntime recipes list
+mediaruntime recipes get team-video --version 3
+mediaruntime run ./launch.mp4 \
+  --recipe team-video@3 \
+  --download ./launch.zip
+```
+
+Owners and admins can manage custom recipes from JSON files:
+
+```bash
+mediaruntime recipes create --file ./recipe.json
+mediaruntime recipes version team-video --file ./recipe-v2.json --expected 1
+mediaruntime recipes archive team-video
+```
+
+`recipe.json` contains `name`, optional `description`, and `template`; a version file may
+contain either a complete object with `template` or the template itself. Versions are
+immutable, and `--expected` prevents concurrent editors from silently overwriting one
+another. `--recipe` cannot be combined with `--output` or `--preset`.
 
 Use `--json` for one compact, URL-redacted machine-readable result. A caller-provided
 `--idempotency-key` remains the durable deduplication mechanism across process restarts;

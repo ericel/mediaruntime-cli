@@ -40,6 +40,7 @@ import {
   runCommand,
   type RunJobsClient,
 } from "./commands/run.js";
+import { runRecipesCommand, type RecipesClient } from "./commands/recipes.js";
 import { runTriggerCommand } from "./commands/trigger.js";
 import { BundleDownloadError, CliError, UsageError } from "./errors.js";
 import { isLoopbackDestination } from "./trigger/destination.js";
@@ -56,15 +57,16 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 const HELP = `MediaRuntime CLI
 
 Usage:
-  mediaruntime run <source> (--output <alias> | --preset <name>) [...] [--wait]
+  mediaruntime run <source> (--recipe <name[@version]> | --output <alias> | --preset <name>) [...] [--wait]
   mediaruntime capabilities [--json]
   mediaruntime presets list [--json]
   mediaruntime jobs list [--status <status>] [--limit <n>] [--cursor <cursor>]
   mediaruntime jobs get <job_id> [--download <bundle.zip>] [--force]
+  mediaruntime recipes <list|get|create|version|archive>
   mediaruntime trigger <job.completed|job.failed|job.rejected> --to <local-url>
   mediaruntime login [--no-browser]
   mediaruntime auth status
@@ -86,6 +88,7 @@ type CliJobsClient = RunJobsClient & JobsReadClient;
 export interface CliClient {
   jobs: CliJobsClient;
   capabilities: CapabilitiesReadClient;
+  recipes?: RecipesClient;
 }
 
 export interface CliDependencies {
@@ -319,7 +322,7 @@ export async function executeCli(
       apiKey = (await resolveCredential(authBaseUrl, authDependencies))?.apiKey;
     }
     if (!dependencies.createClient && !apiKey) {
-      throw new UsageError("Run mediaruntime login or set MEDIARUNTIME_API_KEY before using run or jobs");
+      throw new UsageError("Run mediaruntime login or set MEDIARUNTIME_API_KEY before using this command");
     }
     const client = dependencies.createClient?.({
       ...(baseUrl === undefined ? {} : { baseUrl }),
@@ -339,6 +342,13 @@ export async function executeCli(
     if (command === "run") return await runCommand(global.args.slice(1), commandDependencies);
     if (command === "jobs") {
       return await runJobsCommand(global.args.slice(1), commandDependencies);
+    }
+    if (command === "recipes") {
+      if (!client.recipes) throw new UsageError("This MediaRuntime client does not support hosted recipes");
+      return await runRecipesCommand(global.args.slice(1), {
+        recipes: client.recipes,
+        writeStdout,
+      });
     }
     throw new UsageError(`Unknown command: ${command}`);
   } catch (error) {

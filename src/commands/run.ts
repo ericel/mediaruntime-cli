@@ -45,6 +45,7 @@ export interface RunCommandDependencies {
 interface RunOptions {
   source: string;
   outputs: Array<{ kind: "alias" | "preset"; value: string }>;
+  recipe?: string;
   metadata?: Metadata;
   idempotencyKey?: string;
   wait: boolean;
@@ -77,6 +78,7 @@ function parseRunOptions(args: string[]): RunOptions {
   let source: string | undefined;
   const outputs: RunOptions["outputs"] = [];
   let metadata: Metadata | undefined;
+  let recipe: string | undefined;
   let idempotencyKey: string | undefined;
   let wait = false;
   let timeoutMs: number | undefined;
@@ -91,6 +93,9 @@ function parseRunOptions(args: string[]): RunOptions {
       index += 1;
     } else if (argument === "--preset") {
       outputs.push({ kind: "preset", value: optionValue(args, index, argument) });
+      index += 1;
+    } else if (argument === "--recipe") {
+      recipe = optionValue(args, index, argument);
       index += 1;
     } else if (argument === "--metadata") {
       metadata = parseMetadata(optionValue(args, index, argument));
@@ -125,9 +130,10 @@ function parseRunOptions(args: string[]): RunOptions {
   }
 
   if (!source) {
-    throw new UsageError("Usage: mediaruntime run <source> (--output <alias> | --preset <name>) [--wait]");
+    throw new UsageError("Usage: mediaruntime run <source> (--recipe <name[@version]> | --output <alias> | --preset <name>) [--wait]");
   }
-  if (outputs.length === 0) throw new UsageError("run requires at least one --output or --preset");
+  if (recipe && outputs.length > 0) throw new UsageError("--recipe cannot be combined with --output or --preset");
+  if (!recipe && outputs.length === 0) throw new UsageError("run requires --recipe or at least one --output or --preset");
   const unsupported = outputs.find(
     (output) => output.kind === "alias" && !OUTPUT_ALIASES.has(output.value),
   );
@@ -137,6 +143,7 @@ function parseRunOptions(args: string[]): RunOptions {
   return {
     source,
     outputs,
+    ...(recipe === undefined ? {} : { recipe }),
     ...(metadata === undefined ? {} : { metadata }),
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
     wait,
@@ -173,6 +180,7 @@ function receiptProjection(job: SubmittedJob): JobReceiptData {
     tier: job.tier,
     requiredTier: job.requiredTier,
     outputs: job.outputs,
+    recipe: job.recipe,
     message: job.message,
   };
 }
@@ -192,6 +200,7 @@ function detailsProjection(job: JobDetails): Record<string, unknown> {
       retentionDays: job.bundle.retentionDays,
     },
     media: job.media,
+    recipe: job.recipe,
     metadata: job.metadata,
     error: job.error,
     createdAt: job.createdAt,
@@ -218,10 +227,11 @@ export async function runCommand(
   dependencies: RunCommandDependencies,
 ): Promise<number> {
   const options = parseRunOptions(args);
-  const outputs = await resolveOutputs(options.outputs, dependencies.capabilities);
+  const outputs = options.recipe ? undefined : await resolveOutputs(options.outputs, dependencies.capabilities);
   const params: CreateJobParams = {
     source: options.source,
-    outputs,
+    ...(outputs === undefined ? {} : { outputs }),
+    ...(options.recipe === undefined ? {} : { recipe: options.recipe }),
     ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
     ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
   };

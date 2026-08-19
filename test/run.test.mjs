@@ -105,6 +105,52 @@ test("run passes local source and aliases through, waits, and downloads only the
   assert.doesNotMatch(output, /signed\.example|token=secret/);
 });
 
+test("run accepts one hosted recipe without fetching capabilities", async () => {
+  let createParams;
+  let capabilitiesRead = false;
+  const writes = { stdout: "", stderr: "" };
+  const job = submitted();
+  job.recipe = {
+    name: "team-video",
+    version: 3,
+    reference: "team-video@3",
+    builtIn: false,
+    sha256: "a".repeat(64),
+  };
+  const code = await executeCli([
+    "run", "./launch.mp4", "--recipe", "team-video@3",
+  ], {
+    createClient: () => ({
+      jobs: {
+        create: async (params) => { createParams = params; return job; },
+      },
+      capabilities: {
+        retrieve: async () => { capabilitiesRead = true; throw new Error("not used"); },
+      },
+    }),
+    writeStdout: (text) => { writes.stdout += text; },
+    writeStderr: (text) => { writes.stderr += text; },
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(createParams, { source: "./launch.mp4", recipe: "team-video@3" });
+  assert.equal(capabilitiesRead, false);
+  assert.equal(writes.stderr, "");
+  assert.match(writes.stdout, /job_run/);
+});
+
+test("run rejects recipe and inline outputs together", async () => {
+  const writes = { stdout: "", stderr: "" };
+  const code = await executeCli([
+    "run", "./launch.mp4", "--recipe", "web-video", "--output", "video.web",
+  ], {
+    createClient: () => ({ jobs: {}, capabilities: {} }),
+    writeStdout: (text) => { writes.stdout += text; },
+    writeStderr: (text) => { writes.stderr += text; },
+  });
+  assert.equal(code, 2);
+  assert.match(writes.stderr, /cannot be combined/);
+});
+
 test("interactive run shows upload, wait, and download activity without polluting stdout", async () => {
   let stdout = "";
   let stderr = "";

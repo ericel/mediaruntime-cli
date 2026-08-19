@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.2.0 — 2026-08-19
+
+- Add hosted recipe discovery, inspection, creation, immutable versioning, and archive
+  commands.
+- Add `run --recipe <name[@version]>` with local-file upload, waiting, and safe ZIP
+  download behavior identical to inline output jobs.
+- Keep recipe submission mutually exclusive with `--output` and `--preset`.
+- Upgrade to `@mediaruntime/node` 1.2.0.
+
 ## 1.1.0 — 2026-08-18
 
 - Add unauthenticated `capabilities` and `presets list` discovery commands backed by the
