@@ -130,6 +130,28 @@ mediaruntime run <source>
   [--json]
 ```
 
+When exactly one `contact_sheet_v1` preset is selected, `run` also accepts bounded
+`--contact-columns`, `--contact-rows`, `--contact-tile-width`,
+`--contact-tile-height`, `--contact-interval`, `--contact-start`,
+`--contact-duration`, `--contact-max-sheets`, `--contact-format`, and
+`--contact-quality` controls. They are rejected with recipes, mixed outputs, or any
+other preset so the CLI cannot attach them ambiguously.
+
+When exactly one `audiogram_v1` preset is selected, `--audiogram-artwork` is required.
+`--audiogram-captions` is optional and explicitly enables caption burning. Layout,
+background/waveform colours, start, duration, and frame-rate controls mirror the bounded
+gateway contract. Artwork and captions may be HTTP(S), `gs://`, `file://`, or local
+paths. Local secondary assets use the same authenticated signed-upload client as the
+main source; the submitted job contains only the resulting account-scoped `gs://` URI.
+Raw filters, font paths, and arbitrary rendering arguments are not accepted.
+
+Privacy redaction is a Premium Preview for still-image inputs and public image presets with one or
+more repeatable `--privacy-detector face|license_plate|text` flags. The CLI accepts only
+the gateway's bounded style, strength, failure-mode, confidence, segmented frame-count,
+padding, pixel-block, debug-observation, and solid-colour controls. It resolves aliases through the live capabilities document so
+the request carries explicit output objects, rejects video, audio, animated-image, and recipe combinations
+locally, and never accepts model paths, raw OCR retention, or arbitrary detector options.
+
 `-o` is the short spelling of `--output`. Exactly one source and at least one output or preset are
 required. `<source>` may be an HTTP(S) URL, `gs://` URI, local path, or `file://` URL. The
 CLI passes it to the SDK so local inputs use the SDK's signed-upload flow.

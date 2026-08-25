@@ -87,6 +87,111 @@ mediaruntime run ./launch.mp4 \
 retrieves the catalog and supplies the preset's required output type automatically. Alias
 and preset selections may be mixed and repeated in one command.
 
+Animated WebP and APNG are explicit Premium presets. Their bounded controls apply when
+exactly one animation preset is selected (`0` loops forever; APNG is lossless and does
+not accept `--animation-quality`):
+
+```bash
+mediaruntime run ./clip.mp4 \
+  --preset image_animated_webp_v1 \
+  --animation-width 720 \
+  --animation-fps 15 \
+  --animation-duration 6 \
+  --animation-loop 0 \
+  --animation-quality 80 \
+  --wait --download ./animated-webp.zip
+```
+
+Generate BlurHash, ThumbHash, and a byte-bounded WebP LQIP from an image or video frame
+with the Standard `image_placeholders_v1` preset:
+
+```bash
+mediaruntime run ./product-photo.png \
+  --preset image_placeholders_v1 \
+  --placeholder-max-dimension 32 \
+  --placeholder-time 0 \
+  --lqip-quality 50 \
+  --lqip-max-bytes 4096 \
+  --wait --download ./placeholders.zip
+```
+
+The ZIP contains `placeholders.json` and `lqip.webp`. If the encoded image exceeds
+`--lqip-max-bytes`, the job fails instead of returning an artifact over the requested
+ceiling. The JSON includes source and placeholder dimensions, source format, the
+requested timestamp, and an alpha-aware dominant colour. `--placeholder-time` defaults
+to the first frame at `0`; it does not request automatic representative-frame selection.
+
+Generate bounded composite review sheets from a video with one flat Standard processing
+unit per produced sheet:
+
+```bash
+mediaruntime run ./interview.mp4 \
+  --preset contact_sheet_v1 \
+  --contact-columns 5 \
+  --contact-rows 4 \
+  --contact-tile-width 240 \
+  --contact-tile-height 135 \
+  --contact-interval 12 \
+  --contact-max-sheets 3 \
+  --contact-format jpg \
+  --contact-quality 80 \
+  --wait --download ./contact-sheets.zip
+```
+
+The ZIP contains numbered composite images and `contact_sheet.json`, which maps every
+tile to its exact source timestamp. `--contact-duration 0` means the remaining video.
+`--contact-quality` applies to JPG and WebP; PNG is lossless.
+
+Guarantee that a JPG or WebP rendition stays within a hard byte ceiling:
+
+```bash
+mediaruntime run ./photo.png \
+  --preset image_multi_v1 \
+  --image-width 1280 --image-height 720 --image-mode cover \
+  --image-format webp --image-quality 86 \
+  --image-max-bytes 200000 --image-min-quality 35 \
+  --wait --download ./bounded-image.zip
+```
+
+MediaRuntime performs a bounded quality search and verifies the final file. If the
+constraint cannot be met, the job fails instead of returning an oversized image. The ZIP
+includes `image_size_limits.json`; PNG and AVIF do not accept `--image-max-bytes` yet.
+
+## Privacy redaction
+
+Privacy redaction is an explicit Premium Preview for still-image inputs and image outputs.
+The CLI rejects obvious video or animated-image sources locally, expands the selected
+preset through the live capability catalog, and confirms the output is an image before
+uploading local media:
+
+```bash
+mediaruntime run ./team-photo.jpg \
+  --preset image_multi_v1 \
+  --privacy-detector face \
+  --privacy-detector license_plate \
+  --privacy-detector text \
+  --privacy-style blur \
+  --privacy-failure-mode fail_closed \
+  --wait --download ./redacted.zip
+```
+
+Detector flags are repeatable. Optional bounds include `--privacy-min-confidence`,
+`--privacy-sample-interval`, `--privacy-max-frames`, and `--privacy-padding`; solid masks
+also accept `--privacy-solid-color`, while pixelation accepts
+`--privacy-pixel-block-size` and `--privacy-strength`. Per-sample observations are
+available only with `--privacy-debug-observations`. The ZIP contains the redacted image and
+`privacy_redaction.json` schema v3. Public metadata reports stable detector categories,
+counts, verification outcomes, and ZIP-relative `report_bundle_path` and
+`output_bundle_paths`; it excludes detector vendors, model identities, private model or
+worker paths, bucket names, and raw OCR text. Automated detection can miss sensitive
+regions, so `coverage_verified` remains false and review is required before regulated use.
+In `fail_closed` mode detector failure, unresolved ambiguity, truncation,
+or a verified residual prevents image delivery. Recognizable residuals under blur or
+pixelation may be escalated to bounded opaque masks and verified again. Detector recall
+remains non-exhaustive.
+`--privacy-max-frames` applies independently to each 60-second segment. The defaults are a
+0.2-second interval and 1,800 frames per segment.
+
 ## Hosted recipes
 
 Hosted recipes are immutable account-scoped versions of a complete outputs, moderation,
@@ -117,6 +222,73 @@ another. `--recipe` cannot be combined with `--output` or `--preset`.
 Use `--json` for one compact, URL-redacted machine-readable result. A caller-provided
 `--idempotency-key` remains the durable deduplication mechanism across process restarts;
 the SDK-generated invocation key only protects retries inside one live command.
+
+## Check video compatibility
+
+The CLI reads the live capability catalog, so it can run the versioned compatibility
+preset without hard-coding its profile rules:
+
+```bash
+mediaruntime run ./launch.webm \
+  --preset compatibility_report_v1 \
+  --download ./launch-compatibility.zip
+```
+
+The ZIP contains `compatibility_report.json` with five conservative web, mobile,
+social-upload, and editing profiles, rule-level evidence, and existing corrective preset
+recommendations. It is actionable guidance, not exhaustive certification of every device.
+
+## Scan QR codes and barcodes
+
+Use the live `code_detect_v1` preset with an image, video, animated image, or an
+audio file that contains embedded cover artwork:
+
+```sh
+mediaruntime run ./product-label.png \
+  --preset code_detect_v1 \
+  --wait --download ./detected-codes.zip
+```
+
+The ZIP contains `codes.json` plus evidence PNGs only for frames with unique
+detections. Video is sampled at the opening frame and every 10 seconds, up to 12
+frames and 16 unique codes per frame. Plain audio without cover artwork is rejected. Decoded values are untrusted:
+render them as text and never automatically open a detected URL.
+
+## Generate an audiogram
+
+Compose an audio track, supplied artwork, a generated waveform, and optional supplied
+captions with the Premium `audiogram_v1` preset. The main audio, artwork, and captions
+may each be local files; the CLI uploads local assets through the authenticated account's
+signed-upload flow before creating the job:
+
+```bash
+mediaruntime run ./episode.mp3 \
+  --preset audiogram_v1 \
+  --audiogram-artwork ./cover.png \
+  --audiogram-captions ./episode.vtt \
+  --audiogram-layout square \
+  --audiogram-fit blurred_background \
+  --audiogram-background '#101827' \
+  --audiogram-waveform '#5B5CFF' \
+  --audiogram-waveform-gain 2 \
+  --audiogram-caption-position bottom \
+  --audiogram-caption-scale 1 \
+  --audiogram-normalize --audiogram-loudness-target -16 \
+  --audiogram-duration 60 \
+  --audiogram-fps 30 \
+  --wait --download ./audiogram.zip
+```
+
+Artwork must be PNG, JPEG, or WebP up to 10 MB. Captions must be UTF-8 SRT or VTT up
+to 2 MB; supplying captions burns them into the video. The ZIP contains
+`audiogram.mp4`, a caption-free `poster.jpg`, `audiogram.json`, and
+`audiogram.waveform.json`. Artwork fitting, waveform gain, caption placement, and
+optional loudness normalization are bounded named controls. Account watermarking
+and speech-generated subtitles cannot be combined with this preset in v1.
+
+Captions use their own top or bottom strip inside the reserved band and cannot cover caller
+artwork. Multi-line cues scale down adaptively. The caption-free poster is sampled after
+waveform activity begins, and successful normalization reports measured loudness values.
 
 ## Inspect jobs
 

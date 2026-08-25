@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+- Add explicit, bounded still-image Privacy Redaction Preview flags for face, license-plate, and visible-text
+  masking; aliases are expanded through the live capability catalog before submission.
+- Document the stable public privacy-report boundary and its ZIP-relative paths while
+  excluding detector/model and private infrastructure details.
+- Add bounded Audiogram artwork-fit, waveform-gain, safe-caption, and optional loudness
+  normalization flags; document the caption-free poster artifact.
+- Document capability-driven `code_detect_v1` execution and its untrusted-payload rule.
+- Document and regression-test capability-driven `compatibility_report_v1` execution.
+- Add bounded `contact_sheet_v1` run controls for grid geometry, sampling window, sheet
+  count, format, and quality.
+
 ## 1.2.0 — 2026-08-19
 
 - Add hosted recipe discovery, inspection, creation, immutable versioning, and archive

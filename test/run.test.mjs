@@ -173,7 +173,7 @@ test("interactive run shows upload, wait, and download activity without pollutin
   });
 
   assert.equal(code, 0);
-  assert.match(stderr, /Uploading local source and creating job/);
+  assert.match(stderr, /Uploading local media and creating job/);
   assert.match(stderr, /Waiting for job job_run to complete/);
   assert.match(stderr, /Downloading and verifying ZIP bundle/);
   assert.match(stderr, /\u001b\[2K/);
@@ -317,6 +317,395 @@ test("run resolves public presets to explicit output objects and preserves selec
   ]);
 });
 
+test("run resolves the live compatibility report preset without hard-coded rules", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./video.webm", "--preset", "compatibility_report_v1",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["compatibility_report_v1"],
+          presets: { compatibility_report_v1: { outputType: "image" } },
+        }),
+      },
+      jobs: {
+        create: async (params) => {
+          createParams = params;
+          return submitted();
+        },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [
+    { type: "image", preset: "compatibility_report_v1" },
+  ]);
+});
+
+test("run resolves live QR/barcode detection for images, video, or audio artwork", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./album-with-cover.mp3", "--preset", "code_detect_v1",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["code_detect_v1"],
+          presets: { code_detect_v1: { outputType: "frames" } },
+        }),
+      },
+      jobs: {
+        create: async (params) => {
+          createParams = params;
+          return submitted();
+        },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [
+    { type: "frames", preset: "code_detect_v1" },
+  ]);
+});
+
+test("run attaches bounded animation controls to one animated image preset", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./video.mp4",
+    "--preset", "image_animated_webp_v1",
+    "--animation-width", "720",
+    "--animation-fps", "15",
+    "--animation-start", "1.5",
+    "--animation-duration", "6",
+    "--animation-loop", "0",
+    "--animation-quality", "80",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["image_animated_webp_v1"],
+          presets: { image_animated_webp_v1: { outputType: "image" } },
+        }),
+      },
+      jobs: {
+        create: async (params) => { createParams = params; return submitted(); },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [{
+    type: "image",
+    preset: "image_animated_webp_v1",
+    animation: {
+      width: 720,
+      fps: 15,
+      startTime: 1.5,
+      duration: 6,
+      loop: 0,
+      quality: 80,
+    },
+  }]);
+});
+
+test("run rejects animation controls for ambiguous or incompatible selections", async () => {
+  let error = "";
+  const code = await executeCli([
+    "run", "./video.mp4", "--preset", "image_animated_apng_v1", "--animation-quality", "80",
+  ], {
+    createClient: () => ({
+      jobs: { create: async () => { throw new Error("must not create job"); } },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { error += text; },
+  });
+
+  assert.equal(code, 2);
+  assert.match(error, /APNG is lossless/);
+});
+
+test("run attaches bounded placeholder controls to the placeholder preset", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./poster.png",
+    "--preset", "image_placeholders_v1",
+    "--placeholder-max-dimension", "48",
+    "--placeholder-time", "1.25",
+    "--lqip-quality", "42",
+    "--lqip-max-bytes", "2048",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["image_placeholders_v1"],
+          presets: { image_placeholders_v1: { outputType: "image" } },
+        }),
+      },
+      jobs: {
+        create: async (params) => { createParams = params; return submitted(); },
+      },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [{
+    type: "image",
+    preset: "image_placeholders_v1",
+    placeholders: {
+      maxDimension: 48,
+      sourceTimeSec: 1.25,
+      lqipQuality: 42,
+      lqipMaxBytes: 2048,
+    },
+  }]);
+});
+
+test("run rejects placeholder controls outside the gateway contract or on another selection", async () => {
+  for (const args of [
+    ["run", "./poster.png", "--preset", "image_placeholders_v1", "--lqip-max-bytes", "255"],
+    ["run", "./poster.png", "--preset", "image_multi_v1", "--lqip-quality", "50"],
+  ]) {
+    let error = "";
+    const code = await executeCli(args, {
+      createClient: () => ({ jobs: { create: async () => { throw new Error("must not create job"); } } }),
+      writeStdout: () => {},
+      writeStderr: (text) => { error += text; },
+    });
+    assert.equal(code, 2);
+    assert.match(error, /lqip-max-bytes|placeholder options/);
+  }
+});
+
+test("run attaches bounded contact-sheet controls to contact_sheet_v1", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./video.mp4",
+    "--preset", "contact_sheet_v1",
+    "--contact-columns", "5",
+    "--contact-rows", "4",
+    "--contact-tile-width", "240",
+    "--contact-tile-height", "135",
+    "--contact-interval", "12",
+    "--contact-start", "3",
+    "--contact-duration", "120",
+    "--contact-max-sheets", "3",
+    "--contact-format", "webp",
+    "--contact-quality", "76",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["contact_sheet_v1"],
+          presets: { contact_sheet_v1: { outputType: "frames" } },
+        }),
+      },
+      jobs: { create: async (params) => { createParams = params; return submitted(); } },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [{
+    type: "frames",
+    preset: "contact_sheet_v1",
+    contactSheet: {
+      columns: 5,
+      rows: 4,
+      tileWidth: 240,
+      tileHeight: 135,
+      intervalSec: 12,
+      startTimeSec: 3,
+      durationSec: 120,
+      maxSheets: 3,
+      format: "webp",
+      quality: 76,
+    },
+  }]);
+});
+
+test("run rejects invalid or misplaced contact-sheet controls locally", async () => {
+  for (const args of [
+    ["run", "./video.mp4", "--preset", "contact_sheet_v1", "--contact-columns", "11"],
+    ["run", "./video.mp4", "--preset", "contact_sheet_v1", "--contact-format", "avif"],
+    ["run", "./video.mp4", "--preset", "contact_sheet_v1", "--contact-format", "png", "--contact-quality", "70"],
+    ["run", "./video.mp4", "--preset", "contact_sheet_v1", "--contact-columns", "10", "--contact-tile-width", "640"],
+    ["run", "./video.mp4", "--preset", "mp4_720p_h264_aac", "--contact-rows", "4"],
+  ]) {
+    let error = "";
+    const code = await executeCli(args, {
+      createClient: () => ({ jobs: { create: async () => { throw new Error("must not create job"); } } }),
+      writeStdout: () => {},
+      writeStderr: (text) => { error += text; },
+    });
+    assert.equal(code, 2);
+    assert.match(error, /contact-columns|contact-format|contact-quality|contact-sheet (?:options|width)/);
+  }
+});
+
+test("run attaches a hard JPG/WebP byte ceiling to image_multi_v1", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./photo.png",
+    "--preset", "image_multi_v1",
+    "--image-width", "1280",
+    "--image-height", "720",
+    "--image-mode", "cover",
+    "--image-format", "webp",
+    "--image-quality", "86",
+    "--image-max-bytes", "200000",
+    "--image-min-quality", "35",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["image_multi_v1"],
+          presets: { image_multi_v1: { outputType: "image" } },
+        }),
+      },
+      jobs: { create: async (params) => { createParams = params; return submitted(); } },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(createParams.outputs, [{
+    type: "image",
+    preset: "image_multi_v1",
+    images: [{
+      width: 1280,
+      height: 720,
+      mode: "cover",
+      format: "webp",
+      quality: 86,
+      maxBytes: 200000,
+      minQuality: 35,
+    }],
+  }]);
+});
+
+test("run uploads local Audiogram assets and submits the exact bounded composition", async () => {
+  let createParams;
+  const resolved = [];
+  const code = await executeCli([
+    "run", "./episode.mp3",
+    "--preset", "audiogram_v1",
+    "--audiogram-artwork", "./cover.png",
+    "--audiogram-captions", "./episode.vtt",
+    "--audiogram-layout", "portrait",
+    "--audiogram-fit", "blurred_background",
+    "--audiogram-background", "#102030",
+    "--audiogram-waveform", "#abcdef",
+    "--audiogram-waveform-gain", "2.5",
+    "--audiogram-caption-position", "bottom",
+    "--audiogram-caption-scale", "1.1",
+    "--audiogram-normalize",
+    "--audiogram-loudness-target", "-18",
+    "--audiogram-start", "2.5",
+    "--audiogram-duration", "45",
+    "--audiogram-fps", "24",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["audiogram_v1"],
+          presets: { audiogram_v1: { outputType: "social" } },
+        }),
+      },
+      uploads: {
+        resolveSource: async (source) => {
+          resolved.push(source);
+          return `gs://account-input/${source.endsWith(".png") ? "cover.png" : "episode.vtt"}`;
+        },
+      },
+      jobs: { create: async (params) => { createParams = params; return submitted(); } },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.deepEqual(resolved, ["./cover.png", "./episode.vtt"]);
+  assert.deepEqual(createParams, {
+    source: "./episode.mp3",
+    outputs: [{
+      type: "social",
+      preset: "audiogram_v1",
+      audiogram: {
+        artworkSource: "gs://account-input/cover.png",
+        captionsSource: "gs://account-input/episode.vtt",
+        burnCaptions: true,
+        layout: "portrait",
+        artworkFit: "blurred_background",
+        backgroundColor: "#102030",
+        waveformColor: "#abcdef",
+        waveformGain: 2.5,
+        captionPosition: "bottom",
+        captionFontScale: 1.1,
+        normalizeAudio: true,
+        loudnessTargetLufs: -18,
+        startTimeSec: 2.5,
+        durationSec: 45,
+        fps: 24,
+      },
+    }],
+  });
+});
+
+test("run validates Audiogram requirements and bounds before contacting the gateway", async () => {
+  for (const args of [
+    ["run", "./episode.mp3", "--preset", "audiogram_v1"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-duration", "301"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-fps", "14"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-background", "navy"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-fit", "stretch"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-waveform-gain", "5"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-caption-position", "middle"],
+    ["run", "./episode.mp3", "--preset", "audiogram_v1", "--audiogram-artwork", "./cover.png", "--audiogram-loudness-target", "-30"],
+    ["run", "./episode.mp3", "--preset", "audio_aac_128k", "--audiogram-artwork", "./cover.png"],
+  ]) {
+    let error = "";
+    const code = await executeCli(args, {
+      createClient: () => ({ jobs: { create: async () => { throw new Error("must not create job"); } } }),
+      writeStdout: () => {},
+      writeStderr: (text) => { error += text; },
+    });
+    assert.equal(code, 2);
+    assert.match(error, /audiogram|Audiogram/);
+  }
+});
+
+test("run rejects invalid or misplaced image byte constraints locally", async () => {
+  for (const args of [
+    ["run", "./photo.png", "--preset", "image_multi_v1", "--image-max-bytes", "255"],
+    ["run", "./photo.png", "--preset", "image_multi_v1", "--image-min-quality", "35"],
+    ["run", "./photo.png", "--preset", "image_multi_v1", "--image-format", "png", "--image-max-bytes", "4096"],
+    ["run", "./photo.png", "--preset", "image_multi_v1", "--image-quality", "40", "--image-max-bytes", "4096", "--image-min-quality", "41"],
+    ["run", "./photo.png", "--preset", "media_report_v1", "--image-max-bytes", "4096"],
+  ]) {
+    let error = "";
+    const code = await executeCli(args, {
+      createClient: () => ({ jobs: { create: async () => { throw new Error("must not create job"); } } }),
+      writeStdout: () => {},
+      writeStderr: (text) => { error += text; },
+    });
+    assert.equal(code, 2);
+    assert.match(error, /image-max-bytes|image-min-quality|image rendition options/);
+  }
+});
+
 test("run rejects presets outside the gateway public catalog", async () => {
   let requested = false;
   let error = "";
@@ -403,4 +792,85 @@ test("run validates required output before constructing a client request", async
   assert.equal(code, 2);
   assert.equal(created, false);
   assert.doesNotMatch(error, /MEDIARUNTIME_API_KEY=.*|sk_/);
+});
+
+test("run attaches bounded privacy redaction to a still-image output", async () => {
+  let createParams;
+  const code = await executeCli([
+    "run", "./people.jpg",
+    "--preset", "image_multi_v1",
+    "--privacy-detector", "face",
+    "--privacy-detector", "text",
+    "--privacy-style", "pixelate",
+    "--privacy-failure-mode", "fail_closed",
+    "--privacy-min-confidence", "0.72",
+    "--privacy-sample-interval", "1.5",
+    "--privacy-max-frames", "24",
+    "--privacy-padding", "0.2",
+  ], {
+    createClient: () => ({
+      capabilities: {
+        retrieve: async () => ({
+          publicPresets: ["image_multi_v1"],
+          presets: {
+            image_multi_v1: { outputType: "image" },
+          },
+          outputAliases: {},
+        }),
+      },
+      jobs: { create: async (params) => { createParams = params; return submitted(); } },
+    }),
+    writeStdout: () => {},
+    writeStderr: (text) => { throw new Error(text); },
+  });
+
+  assert.equal(code, 0);
+  assert.equal(createParams.outputs.length, 1);
+  for (const output of createParams.outputs) {
+    assert.deepEqual(output.privacyRedaction, {
+      detectors: ["face", "text"],
+      style: "pixelate",
+      failureMode: "fail_closed",
+      minConfidence: 0.72,
+      sampleIntervalSec: 1.5,
+      maxFrames: 24,
+      boxPaddingRatio: 0.2,
+    });
+  }
+  assert.equal(createParams.outputs[0].preset, "image_multi_v1");
+});
+
+test("run rejects video privacy redaction before upload or API submission", async () => {
+  let requested = false;
+  let error = "";
+  const code = await executeCli([
+    "run", "./people.mp4", "--output", "video.web", "--privacy-detector", "face",
+  ], {
+    createClient: () => ({ jobs: { create: async () => { requested = true; } } }),
+    writeStdout: () => {},
+    writeStderr: (text) => { error += text; },
+  });
+  assert.equal(code, 2);
+  assert.equal(requested, false);
+  assert.match(error, /still-image inputs only/i);
+});
+
+test("run rejects incomplete or invalid privacy controls locally", async () => {
+  for (const args of [
+    ["run", "./video.mp4", "--output", "video.web", "--privacy-style", "blur"],
+    ["run", "./video.mp4", "--output", "video.web", "--privacy-detector", "person"],
+    ["run", "./video.mp4", "--output", "video.web", "--privacy-detector", "face", "--privacy-detector", "face"],
+    ["run", "./video.mp4", "--output", "video.web", "--privacy-detector", "face", "--privacy-max-frames", "18001"],
+  ]) {
+    let requested = false;
+    let error = "";
+    const code = await executeCli(args, {
+      createClient: () => ({ jobs: { create: async () => { requested = true; } } }),
+      writeStdout: () => {},
+      writeStderr: (text) => { error += text; },
+    });
+    assert.equal(code, 2);
+    assert.equal(requested, false);
+    assert.match(error, /privacy/i);
+  }
 });

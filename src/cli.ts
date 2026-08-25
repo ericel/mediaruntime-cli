@@ -62,6 +62,32 @@ const HELP = `MediaRuntime CLI
 
 Usage:
   mediaruntime run <source> (--recipe <name[@version]> | --output <alias> | --preset <name>) [...] [--wait]
+    Animation presets: [--animation-width N] [--animation-fps N] [--animation-start SEC]
+      [--animation-duration SEC] [--animation-loop N] [--animation-quality N]
+    Placeholder preset: [--placeholder-max-dimension N] [--placeholder-time SEC]
+      [--lqip-quality N] [--lqip-max-bytes N]
+    Contact-sheet preset: [--contact-columns N] [--contact-rows N]
+      [--contact-tile-width N] [--contact-tile-height N] [--contact-interval SEC]
+      [--contact-start SEC] [--contact-duration SEC] [--contact-max-sheets N]
+      [--contact-format jpg|png|webp] [--contact-quality N]
+      [--image-width PX] [--image-height PX] [--image-mode fit|fill|cover|contain]
+      [--image-format jpg|png|webp|avif] [--image-quality N]
+      [--image-max-bytes N] [--image-min-quality N]
+    Audiogram preset: --audiogram-artwork <source> [--audiogram-captions <source>]
+      [--audiogram-layout square|portrait|landscape]
+      [--audiogram-fit contain|cover|blurred_background]
+      [--audiogram-background #RRGGBB] [--audiogram-waveform #RRGGBB]
+      [--audiogram-waveform-gain 0.5..4]
+      [--audiogram-caption-position top|bottom] [--audiogram-caption-scale 0.75..1.5]
+      [--audiogram-normalize] [--audiogram-loudness-target -24..-12]
+      [--audiogram-start SEC] [--audiogram-duration SEC] [--audiogram-fps 15..30]
+    Privacy redaction Preview (still-image input + image output only):
+      --privacy-detector face|license_plate|text
+      [--privacy-style blur|pixelate|solid] [--privacy-failure-mode fail_closed|report_only]
+      [--privacy-min-confidence 0.30..0.99] [--privacy-sample-interval 0.1..30]
+      [--privacy-max-frames 1..18000] [--privacy-padding 0..0.5]
+      [--privacy-solid-color #RRGGBB] [--privacy-pixel-block-size 4..128]
+      [--privacy-strength standard|strong] [--privacy-debug-observations]
   mediaruntime capabilities [--json]
   mediaruntime presets list [--json]
   mediaruntime jobs list [--status <status>] [--limit <n>] [--cursor <cursor>]
@@ -88,6 +114,9 @@ type CliJobsClient = RunJobsClient & JobsReadClient;
 export interface CliClient {
   jobs: CliJobsClient;
   capabilities: CapabilitiesReadClient;
+  uploads?: {
+    resolveSource(source: string): Promise<string>;
+  };
   recipes?: RecipesClient;
 }
 
@@ -335,6 +364,7 @@ export async function executeCli(
     const commandDependencies = {
       jobs: client.jobs,
       capabilities: client.capabilities,
+      ...(client.uploads ? { uploads: client.uploads } : {}),
       writeStdout,
       downloadBundle,
       activity: createActivityIndicator(writeStderr, isStderrTTY && !json),
