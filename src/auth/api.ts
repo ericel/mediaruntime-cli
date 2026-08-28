@@ -1,5 +1,6 @@
 import { CliError } from "../errors.js";
 
+// Browser login uses a dedicated application route rather than the public /v1 API.
 export const PRODUCTION_ORIGIN = "https://mediaruntime.com";
 
 interface ErrorPayload {
@@ -65,6 +66,7 @@ async function post(
   try {
     response = await fetch(endpoint(baseUrl, path), {
       method: "POST",
+      // Never forward a credential or device code through an unexpected redirect.
       redirect: "error",
       headers: {
         "Content-Type": "application/json",
@@ -88,6 +90,7 @@ async function post(
 }
 
 function requireString(payload: Record<string, unknown>, key: string): string {
+  // Treat malformed success responses as a service failure, not as usable credentials.
   const value = payload[key];
   if (typeof value !== "string" || !value) throw new CliError("invalid_auth_response", "MediaRuntime returned an invalid authentication response", 5);
   return value;

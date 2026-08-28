@@ -13,6 +13,7 @@ import { BundleDownloadError, UsageError } from "../errors.js";
 import type { ActivityIndicator } from "../ui/activity.js";
 
 const UNSUCCESSFUL_TERMINAL_STATUSES = new Set(["FAILED", "REJECTED", "PARTIAL"]);
+// Fast-path aliases are stable CLI inputs; preset metadata is still fetched from capabilities.
 const OUTPUT_ALIASES = new Set([
   "video.web",
   "video.streaming",
@@ -567,6 +568,7 @@ async function resolveAudiogramAsset(
   if (!uploads) {
     throw new UsageError(`This client cannot upload local Audiogram ${label}; use an HTTP(S) URL or gs:// URI`);
   }
+  // Upload local artwork/captions through the SDK before embedding their private source URI.
   return await uploads.resolveSource(source);
 }
 
@@ -595,6 +597,7 @@ async function resolveOutputs(
   audiogram?: RunOptions["audiogram"],
   privacyRedaction?: RunOptions["privacyRedaction"],
 ): Promise<Array<OutputAlias | JobOutput>> {
+  // Plain aliases need no expansion; preset-specific options require authoritative metadata.
   if (!privacyRedaction && !selections.some((selection) => selection.kind === "preset")) {
     return selections.map((selection) => selection.value as OutputAlias);
   }
@@ -667,6 +670,7 @@ function receiptProjection(job: SubmittedJob): JobReceiptData {
 }
 
 function detailsProjection(job: JobDetails): Record<string, unknown> {
+  // Redact the signed bundle URL from --json; expose only lifecycle and integrity metadata.
   return {
     id: job.id,
     status: job.status,
@@ -719,6 +723,7 @@ export async function runCommand(
   );
 
   try {
+    // Auxiliary local files are resolved first so the submitted job contains durable sources.
     const audiogram = options.audiogram === undefined
       ? undefined
       : await resolveAudiogram(options.audiogram, dependencies.uploads);
@@ -744,6 +749,7 @@ export async function runCommand(
     const submitted = await dependencies.jobs.create(params);
 
     if (!options.wait) {
+      // Submission-only mode returns immediately; production services should prefer webhooks.
       dependencies.activity.stop();
       if (options.json) dependencies.writeStdout(`${JSON.stringify(receiptProjection(submitted))}\n`);
       else writeHumanReceipt(submitted, dependencies.writeStdout);

@@ -11,6 +11,7 @@ export function createActivityIndicator(
   write: (text: string) => void,
   enabled: boolean,
 ): ActivityIndicator {
+  // Callers enable this only for interactive stderr, keeping stdout and --json parseable.
   let timer: ReturnType<typeof setInterval> | undefined;
   let frameIndex = 0;
   let message = "";
@@ -33,6 +34,7 @@ export function createActivityIndicator(
       frameIndex = 0;
       render();
       timer = setInterval(render, 80);
+      // A spinner must never keep an otherwise finished CLI process alive.
       timer.unref?.();
     },
     update(nextMessage) {

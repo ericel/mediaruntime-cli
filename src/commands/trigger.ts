@@ -122,6 +122,7 @@ async function resolveSecret(
       throw new UsageError(`Could not read webhook secret file: ${args.secretFile}`, { cause: error });
     }
   } else {
+    // Match deployed webhook receivers by default without placing secrets in shell history.
     secret = dependencies.env.MEDIARUNTIME_WEBHOOK_SECRET;
   }
   const normalized = secret?.trim();
@@ -161,6 +162,7 @@ export async function runTriggerCommand(
   });
   const signed = signSyntheticWebhook(payload, { eventId, timestamp, secret });
 
+  // Redirects are disabled so a loopback endpoint cannot relay the signed request elsewhere.
   const response = await deps.fetch(parsed.destination, {
     method: "POST",
     headers: signed.headers,

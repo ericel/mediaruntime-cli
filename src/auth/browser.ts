@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { CliError } from "../errors.js";
 
 export async function openBrowser(url: string): Promise<void> {
+  // Use the operating system URL handler so the CLI does not depend on a browser package.
   const command = process.platform === "darwin"
     ? { executable: "open", args: [url] }
     : process.platform === "win32"
@@ -20,6 +21,7 @@ export async function openBrowser(url: string): Promise<void> {
       { cause: error },
     )));
     child.once("spawn", () => {
+      // The browser owns its lifecycle after launch; the CLI can continue polling approval.
       child.unref();
       resolve();
     });

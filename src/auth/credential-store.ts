@@ -17,6 +17,7 @@ export interface CredentialStore {
 }
 
 function vaultAccount(baseUrl: string): string {
+  // One vault entry per host keeps production and local/development logins isolated.
   return new URL(baseUrl).host.toLowerCase();
 }
 
@@ -32,6 +33,7 @@ function validCredential(value: unknown): value is StoredCredential {
 
 async function entry(baseUrl: string) {
   try {
+    // Load keyring lazily so MEDIARUNTIME_API_KEY remains usable on unsupported systems.
     const { Entry } = await import("@napi-rs/keyring");
     return new Entry(SERVICE, vaultAccount(baseUrl));
   } catch (error) {

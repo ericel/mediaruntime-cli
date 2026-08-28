@@ -41,6 +41,7 @@ async function recipeFile(path: string): Promise<Record<string, unknown>> {
     throw new UsageError(`Could not read recipe file: ${path}`, { cause: error });
   }
   try {
+    // Perform only structural parsing here; the gateway remains authoritative for templates.
     const parsed = JSON.parse(raw) as unknown;
     if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error();
     return parsed as Record<string, unknown>;
@@ -142,6 +143,7 @@ export async function runRecipesCommand(
     const value = await recipeFile(file);
     const template = value.template ?? value;
     output(await dependencies.recipes.createVersion(name, {
+      // Optimistic concurrency prevents two maintainers from replacing the same latest version.
       expectedLatestVersion: expected,
       ...(typeof value.description === "string" ? { description: value.description } : {}),
       template: template as CreateRecipeVersionParams["template"],

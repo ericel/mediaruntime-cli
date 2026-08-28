@@ -25,6 +25,7 @@ function optionValue(args: string[], index: number, option: string): string {
 }
 
 function detailsProjection(job: JobDetails): Record<string, unknown> {
+  // Keep machine-readable output useful while omitting the signed bundle URL from JSON logs.
   return {
     id: job.id,
     status: job.status,
@@ -150,6 +151,7 @@ async function getCommand(args: string[], dependencies: JobsCommandDependencies)
   if (!json) dependencies.writeStdout(humanDetails(job));
 
   if (UNSUCCESSFUL_TERMINAL_STATUSES.has(String(job.status).toUpperCase())) {
+    // A retrieved failed job is a successful API call but an unsuccessful automation result.
     if (json) dependencies.writeStdout(`${JSON.stringify(detailsProjection(job))}\n`);
     return 6;
   }
@@ -159,6 +161,7 @@ async function getCommand(args: string[], dependencies: JobsCommandDependencies)
       throw new BundleDownloadError("Bundle download requires a COMPLETED job with an available canonical bundle");
     }
     try {
+      // Verify gateway-provided size and digest before publishing the downloaded bundle.
       await dependencies.downloadBundle(job.bundle.downloadUrl, download, {
         force,
         expectedSizeBytes: job.bundle.sizeBytes,

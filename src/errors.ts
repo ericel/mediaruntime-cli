@@ -3,6 +3,7 @@ export class CliError extends Error {
   readonly exitCode: number;
 
   constructor(code: string, message: string, exitCode: number, options?: { cause?: unknown }) {
+    // Stable codes and exit statuses let shell scripts distinguish usage, API, and I/O failures.
     super(message, options);
     this.name = "CliError";
     this.code = code;

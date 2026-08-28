@@ -21,6 +21,7 @@ export function createSyntheticTerminalEvent(
   type: TriggerEventType,
   options: SyntheticEventOptions,
 ): Record<string, unknown> {
+  // Keep synthetic events shaped like production terminal webhooks for realistic local tests.
   const status = type.slice("job.".length).toUpperCase();
   const occurredAt = new Date(options.timestamp * 1000).toISOString();
   const base = {
@@ -45,6 +46,7 @@ export function createSyntheticTerminalEvent(
           size_bytes: 0,
           sha256: "0".repeat(64),
           download: {
+            // This marker URL is descriptive only; trigger never serves a synthetic ZIP.
             url: `http://127.0.0.1/__mediaruntime_synthetic__/${encodeURIComponent(options.jobId)}.zip`,
             expiresAt,
           },

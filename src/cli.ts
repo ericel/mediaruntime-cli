@@ -163,6 +163,7 @@ export async function downloadBundleAtomically(
     expectedSha256?: string | null;
   },
 ): Promise<void> {
+  // Stream into a private sibling file so an interrupted transfer never appears complete.
   const target = resolve(destination);
   if (!options.force && await exists(target)) {
     throw new BundleDownloadError(`Refusing to overwrite existing file: ${destination}`);
@@ -199,6 +200,7 @@ export async function downloadBundleAtomically(
       createWriteStream(temporary, { flags: "wx", mode: 0o600 }),
     );
     const sha256 = hash.digest("hex");
+    // Validate before the temporary file becomes visible at the requested destination.
     if (options.expectedSizeBytes !== undefined && options.expectedSizeBytes !== null &&
         sizeBytes !== options.expectedSizeBytes) {
       throw new BundleDownloadError(
@@ -241,6 +243,7 @@ function normalizeBaseUrl(raw: string): string {
   if (value.username || value.password || value.search || value.hash || value.pathname !== "/") {
     throw new UsageError("--base-url must be an origin without credentials, path, query, or fragment");
   }
+  // Plain HTTP is acceptable only for a developer-controlled loopback gateway.
   if (value.protocol !== "https:" && !(value.protocol === "http:" && isLoopbackDestination(value))) {
     throw new UsageError("--base-url must use HTTPS unless it points to loopback");
   }
@@ -334,6 +337,7 @@ export async function executeCli(
     if (command === "logout") return await runLogoutCommand(global.args.slice(1), authBaseUrl, authDependencies);
 
     if (command === "capabilities" || command === "presets") {
+      // Discovery is public, so these commands work before login and in setup scripts.
       const publicClient = dependencies.createClient?.({
         ...(baseUrl === undefined ? {} : { baseUrl }),
       }) ?? new MediaRuntime({
@@ -346,6 +350,7 @@ export async function executeCli(
       return await runPresetsCommand(global.args.slice(1), publicDependencies);
     }
 
+    // Preserve the documented precedence: explicit environment key, then browser login.
     let apiKey = process.env.MEDIARUNTIME_API_KEY?.trim();
     if (!apiKey && (!dependencies.createClient || dependencies.credentialStore)) {
       apiKey = (await resolveCredential(authBaseUrl, authDependencies))?.apiKey;

@@ -46,6 +46,7 @@ export async function resolveCredential(
   baseUrl: string,
   dependencies: AuthCommandDependencies = {},
 ): Promise<{ apiKey: string; source: "environment" | "keychain"; stored?: StoredCredential } | null> {
+  // Environment authentication is permanently supported and deliberately overrides login.
   const environment = process.env.MEDIARUNTIME_API_KEY?.trim();
   if (environment) return { apiKey: environment, source: "environment" };
   const stored = await store(dependencies).get(baseUrl);
@@ -75,6 +76,7 @@ export async function runLoginCommand(
   if (verifier.length < 43 || verifier.length > 128) {
     throw new CliError("invalid_verifier", "Generated PKCE verifier is invalid", 1);
   }
+  // Only the challenge leaves this process; the PKCE verifier stays local until exchange.
   const authorization = await startAuthorization(baseUrl, verifierChallenge(verifier));
   if (!Number.isFinite(authorization.expiresIn) || authorization.expiresIn <= 0 ||
       !Number.isFinite(authorization.interval) || authorization.interval < 1) {
@@ -96,6 +98,7 @@ export async function runLoginCommand(
       break;
     } catch (error) {
       if (error instanceof AuthApiError && error.code === "authorization_pending") {
+        // Respect the server-provided polling interval to avoid a busy device-flow loop.
         await sleep(authorization.interval * 1000);
         continue;
       }
@@ -114,6 +117,7 @@ export async function runLoginCommand(
       createdAt: new Date(now()).toISOString(),
     });
   } catch (error) {
+    // Do not leave an active server credential behind when local persistence fails.
     await revokeCredential(baseUrl, credential.apiKey).catch(() => undefined);
     throw error;
   }

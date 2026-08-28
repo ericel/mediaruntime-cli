@@ -17,6 +17,7 @@ export function isLoopbackDestination(value: URL): boolean {
 }
 
 export function parseLocalDestination(raw: string): URL {
+  // `trigger` is a local receiver test tool, so reject remote destinations and SSRF targets.
   let destination: URL;
   try {
     destination = new URL(raw);

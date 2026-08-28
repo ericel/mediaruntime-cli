@@ -39,6 +39,7 @@ function table(headings: string[], rows: string[][]): string {
 }
 
 export function publicPresetRows(capabilities: Capabilities): PublicPresetRow[] {
+  // Preserve the gateway's public ordering and never expose metadata for private presets.
   return capabilities.publicPresets.map((name) => {
     const preset = capabilities.presets[name];
     if (!preset) {
