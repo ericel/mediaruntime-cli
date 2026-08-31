@@ -61,6 +61,14 @@ Authenticated commands resolve credentials in this order:
 No command-line API-key flag exists. No plaintext credential-file fallback exists. A
 machine without a supported credential vault must use `MEDIARUNTIME_API_KEY`.
 
+Hosted Sticker Runtime has one deliberately narrower exception. For collection-bound
+`stickers packs list`, `search`, `typeahead`, `get`, and `resolve`,
+`MEDIARUNTIME_STICKER_CLIENT_TOKEN` selects a short-lived scoped client without reading the
+master API key or stored login. The explicit collection must match the token claim.
+Collection management, pack binding, workspace usage, and token issuance never accept that
+credential and continue using the normal resolution order above. See
+[the Sticker Runtime contract](STICKERS.md) for the exact boundary.
+
 ## Security invariants
 
 - Device codes and PKCE verifiers carry at least 256 bits of randomness.

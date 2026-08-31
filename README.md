@@ -4,7 +4,7 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
-Status: stable `1.2.0`. The documented `1.x` command names, flags, JSON envelopes, exit
+Status: stable `1.3.0`. The documented `1.x` command names, flags, JSON envelopes, exit
 codes, and credential precedence follow semantic versioning. Breaking changes require a
 new major version; additive commands and fields may ship in minor releases.
 
@@ -289,6 +289,75 @@ and speech-generated subtitles cannot be combined with this preset in v1.
 Captions use their own top or bottom strip inside the reserved band and cannot cover caller
 artwork. Multi-line cues scale down adaptively. The caption-free poster is sampled after
 waveform activity begins, and successful normalization reports measured loudness values.
+
+## Hosted Sticker Runtime
+
+Sticker collections are free application configuration over packs your workspace already
+activated. Create a collection, then enable an existing paid Hosted Pack by its stable pack
+ID or activation ID:
+
+```bash
+mediaruntime stickers collections create \
+  --name "Support chat" \
+  --description "Customer-facing reactions"
+
+mediaruntime stickers collections list
+mediaruntime stickers collections get stc_0123456789abcdef0123456789abcdef
+mediaruntime stickers collections update stc_0123456789abcdef0123456789abcdef \
+  --name "Support and community"
+
+mediaruntime stickers collections packs enable stc_0123456789abcdef0123456789abcdef \
+  --pack white-sage-just-me
+mediaruntime stickers collections packs list stc_0123456789abcdef0123456789abcdef
+mediaruntime stickers collections packs disable stc_0123456789abcdef0123456789abcdef \
+  --pack white-sage-just-me
+```
+
+Disabling a pack prevents new discovery but preserves exact historical rendering under the
+binding's `historicalAccess` policy. `collections archive` is also recoverable; restore with
+`collections update <id> --status active`. These commands do not buy, activate, revoke, or
+charge for a pack. Use the authenticated MediaRuntime account surface for paid activation.
+
+Search and resolve assets inside one explicitly selected collection:
+
+```bash
+mediaruntime stickers packs list --collection stc_0123456789abcdef0123456789abcdef
+mediaruntime stickers search "wave" \
+  --collection stc_0123456789abcdef0123456789abcdef \
+  --category greeting --animated --limit 10
+mediaruntime stickers typeahead "wa" \
+  --collection stc_0123456789abcdef0123456789abcdef --locale en
+mediaruntime stickers get white-sage-just-me-wave \
+  --collection stc_0123456789abcdef0123456789abcdef
+mediaruntime stickers resolve white-sage-just-me-wave \
+  --variant small_160 \
+  --collection stc_0123456789abcdef0123456789abcdef
+```
+
+All sticker commands use `MEDIARUNTIME_API_KEY` or the secure browser login by default.
+Untrusted application testing may instead set a short-lived token for only the five runtime
+read commands above:
+
+```bash
+mediaruntime stickers token create \
+  --collection stc_0123456789abcdef0123456789abcdef \
+  --expires-in 900 \
+  --scope packs:read \
+  --scope stickers:search \
+  --scope stickers:read \
+  --scope assets:resolve
+
+export MEDIARUNTIME_STICKER_CLIENT_TOKEN="mrt_v1_..."
+mediaruntime stickers search "wave" \
+  --collection stc_0123456789abcdef0123456789abcdef
+```
+
+The scoped token never authorizes collection management, pack binding, workspace usage, or
+token minting; those always require the trusted API key. The CLI accepts the scoped secret
+only through `MEDIARUNTIME_STICKER_CLIENT_TOKEN`, not a command-line flag. The collection
+argument must still match the token claim. Inspect pooled monthly usage with
+`mediaruntime stickers usage`. See [the Sticker Runtime command contract](docs/STICKERS.md)
+for complete flags, JSON behavior, and security boundaries.
 
 ## Inspect jobs
 

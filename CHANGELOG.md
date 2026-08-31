@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.3.0 — 2026-08-31
 
+- Add complete Hosted Sticker Runtime commands for collection lifecycle, pack binding,
+  enabled-pack discovery, search, typeahead, stable metadata retrieval, signed asset
+  resolution, pooled usage, and short-lived scoped token issuance.
+- Keep API keys and secure browser login as the default sticker authentication while
+  allowing `MEDIARUNTIME_STICKER_CLIENT_TOKEN` only for collection-bound read commands.
 - Add explicit, bounded still-image Privacy Redaction Preview flags for face, license-plate, and visible-text
   masking; aliases are expanded through the live capability catalog before submission.
 - Document the stable public privacy-report boundary and its ZIP-relative paths while

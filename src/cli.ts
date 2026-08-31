@@ -18,6 +18,7 @@ import {
   MediaRuntimeApiError,
   MediaRuntimeConnectionError,
 } from "@mediaruntime/node";
+import * as MediaRuntimeSdk from "@mediaruntime/node";
 import { PRODUCTION_ORIGIN } from "./auth/api.js";
 import type { CredentialStore } from "./auth/credential-store.js";
 import {
@@ -41,6 +42,13 @@ import {
   type RunJobsClient,
 } from "./commands/run.js";
 import { runRecipesCommand, type RecipesClient } from "./commands/recipes.js";
+import {
+  isScopedStickerRuntimeCommand,
+  runStickersCommand,
+  stickerCollectionOption,
+  type HostedStickersCommandClient,
+  type StickerRuntimeReadClient,
+} from "./commands/stickers.js";
 import { runTriggerCommand } from "./commands/trigger.js";
 import { BundleDownloadError, CliError, UsageError } from "./errors.js";
 import { isLoopbackDestination } from "./trigger/destination.js";
@@ -93,6 +101,14 @@ Usage:
   mediaruntime jobs list [--status <status>] [--limit <n>] [--cursor <cursor>]
   mediaruntime jobs get <job_id> [--download <bundle.zip>] [--force]
   mediaruntime recipes <list|get|create|version|archive>
+  mediaruntime stickers collections <list|create|get|update|archive|packs>
+  mediaruntime stickers packs list --collection <collection_id>
+  mediaruntime stickers search <query> --collection <collection_id>
+  mediaruntime stickers typeahead <prefix> --collection <collection_id>
+  mediaruntime stickers get <sticker_id> --collection <collection_id>
+  mediaruntime stickers resolve <sticker_id> --variant <name> --collection <collection_id>
+  mediaruntime stickers usage
+  mediaruntime stickers token create --collection <collection_id>
   mediaruntime trigger <job.completed|job.failed|job.rejected> --to <local-url>
   mediaruntime login [--no-browser]
   mediaruntime auth status
@@ -107,6 +123,9 @@ Run/jobs options:
   --json            Machine-readable, URL-redacted output
 
 Authentication uses a secure login or MEDIARUNTIME_API_KEY.
+Sticker commands use that API key by default. MEDIARUNTIME_STICKER_CLIENT_TOKEN may
+replace it only for collection-bound packs/search/typeahead/get/resolve reads; it cannot
+manage collections, inspect workspace usage, or mint another token.
 `;
 
 type CliJobsClient = RunJobsClient & JobsReadClient;
@@ -118,10 +137,16 @@ export interface CliClient {
     resolveSource(source: string): Promise<string>;
   };
   recipes?: RecipesClient;
+  stickers?: HostedStickersCommandClient;
 }
 
 export interface CliDependencies {
   createClient?(options: { baseUrl?: string; apiKey?: string }): CliClient;
+  createStickerRuntime?(options: {
+    accessToken: string;
+    collectionId: string;
+    baseUrl?: string;
+  }): StickerRuntimeReadClient;
   downloadBundle?(
     url: string,
     destination: string,
@@ -350,6 +375,36 @@ export async function executeCli(
       return await runPresetsCommand(global.args.slice(1), publicDependencies);
     }
 
+    const stickerArguments = global.args.slice(1);
+    const stickerClientToken = process.env.MEDIARUNTIME_STICKER_CLIENT_TOKEN?.trim();
+    if (command === "stickers" &&
+        (!stickerArguments[0] || stickerArguments.includes("--help") || stickerArguments.includes("-h"))) {
+      // Help is local and must remain available before login, including on clean machines.
+      return await runStickersCommand(stickerArguments, { writeStdout });
+    }
+    if (command === "stickers" && stickerClientToken && isScopedStickerRuntimeCommand(stickerArguments)) {
+      // Scoped mode is dispatched before master-key resolution so an untrusted client
+      // credential can never silently fall back to a more privileged stored login.
+      const selectedCollectionId = stickerCollectionOption(stickerArguments);
+      const options = {
+        accessToken: stickerClientToken,
+        collectionId: selectedCollectionId,
+        ...(baseUrl === undefined ? {} : { baseUrl }),
+      };
+      const constructor = (MediaRuntimeSdk as unknown as {
+        StickerRuntime?: new (value: typeof options) => StickerRuntimeReadClient;
+      }).StickerRuntime;
+      const runtime = dependencies.createStickerRuntime?.(options) ??
+        (constructor ? new constructor(options) : undefined);
+      if (!runtime) {
+        throw new UsageError("The installed @mediaruntime/node SDK does not support scoped Sticker Runtime tokens");
+      }
+      return await runStickersCommand(stickerArguments, {
+        runtime: () => runtime,
+        writeStdout,
+      });
+    }
+
     // Preserve the documented precedence: explicit environment key, then browser login.
     let apiKey = process.env.MEDIARUNTIME_API_KEY?.trim();
     if (!apiKey && (!dependencies.createClient || dependencies.credentialStore)) {
@@ -382,6 +437,16 @@ export async function executeCli(
       if (!client.recipes) throw new UsageError("This MediaRuntime client does not support hosted recipes");
       return await runRecipesCommand(global.args.slice(1), {
         recipes: client.recipes,
+        writeStdout,
+      });
+    }
+    if (command === "stickers") {
+      // The structural cast keeps local builds compatible while the additive SDK
+      // release carrying the stickers resource moves through package publication.
+      const stickers = (client as unknown as CliClient).stickers;
+      if (!stickers) throw new UsageError("This MediaRuntime client does not support Hosted Sticker Runtime");
+      return await runStickersCommand(stickerArguments, {
+        hosted: stickers,
         writeStdout,
       });
     }

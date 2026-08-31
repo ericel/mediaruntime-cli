@@ -23,6 +23,12 @@ mediaruntime recipes get <name>
 mediaruntime recipes create --file <recipe.json>
 mediaruntime recipes version <name> --file <recipe.json> --expected <version>
 mediaruntime recipes archive <name>
+mediaruntime stickers collections list
+mediaruntime stickers collections packs enable <collection_id> --pack <pack_id>
+mediaruntime stickers search <query> --collection <collection_id>
+mediaruntime stickers resolve <sticker_id> --variant <name> --collection <collection_id>
+mediaruntime stickers usage
+mediaruntime stickers token create --collection <collection_id>
 mediaruntime jobs list
 mediaruntime jobs get <job_id>
 mediaruntime trigger job.completed --to http://127.0.0.1:3000/webhooks/mediaruntime
@@ -40,6 +46,11 @@ MediaRuntime API.
 The canonical result remains one expiring ZIP bundle containing the complete output tree.
 The CLI downloads that ZIP as-is; it does not expose individual artifacts or infer an
 engine directory layout.
+
+Hosted Sticker Runtime commands are the other explicit asset-delivery surface. They bind
+all reads to one application collection and use the SDK's short-lived, generation-pinned
+sticker resolution rather than the job ZIP contract. The complete command and security
+contract is maintained in `docs/STICKERS.md`.
 
 ## 2. Goals and non-goals
 
