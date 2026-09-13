@@ -65,7 +65,7 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.4.0";
 const HELP = `MediaRuntime CLI
 
 Usage:
@@ -81,6 +81,11 @@ Usage:
       [--image-width PX] [--image-height PX] [--image-mode fit|fill|cover|contain]
       [--image-format jpg|png|webp|avif] [--image-quality N]
       [--image-max-bytes N] [--image-min-quality N]
+    Clip render: --preset video_clip_v1 --clip-start SEC --clip-duration SEC
+      [--clip-layout original|vertical_blur] [--clip-transcript <plan.json|captions.srt|captions.vtt>] [--clip-captions]
+    Clip suggestions: --preset clip_candidates_v1 [--clip-min-duration SEC]
+      [--clip-max-duration SEC] [--clip-count 1..20] [--clip-keyword TEXT]
+      [--clip-transcript <plan.json|captions.srt|captions.vtt>]
     Audiogram preset: --audiogram-artwork <source> [--audiogram-captions <source>]
       [--audiogram-layout square|portrait|landscape]
       [--audiogram-fit contain|cover|blurred_background]

@@ -9,6 +9,7 @@ import type {
   WaitForJobOptions,
 } from "@mediaruntime/node";
 import type { CapabilitiesReadClient } from "./capabilities.js";
+import { readClipTranscript } from "../clipTranscript.js";
 import { BundleDownloadError, UsageError } from "../errors.js";
 import type { ActivityIndicator } from "../ui/activity.js";
 
@@ -94,6 +95,21 @@ interface RunOptions {
     maxBytes?: number;
     minQuality?: number;
   };
+  clip?: {
+    startTimeSec: number;
+    durationSec: number;
+    layout?: "original" | "vertical_blur";
+    burnCaptions?: boolean;
+    transcript?: Array<{ startTimeSec: number; endTimeSec: number; text: string }>;
+  };
+  clipAnalysis?: {
+    minDurationSec?: number;
+    maxDurationSec?: number;
+    maxCandidates?: number;
+    keywords?: string[];
+    transcript?: Array<{ startTimeSec: number; endTimeSec: number; text: string }>;
+  };
+  clipTranscriptFile?: string;
   audiogram?: {
     artworkSource: string;
     captionsSource?: string;
@@ -184,6 +200,9 @@ function parseRunOptions(args: string[]): RunOptions {
   const contactSheet: NonNullable<RunOptions["contactSheet"]> = {};
   const image: NonNullable<RunOptions["image"]> = {};
   const audiogram: Partial<NonNullable<RunOptions["audiogram"]>> = {};
+  const clip: Partial<NonNullable<RunOptions["clip"]>> = {};
+  const clipAnalysis: NonNullable<RunOptions["clipAnalysis"]> = {};
+  let clipTranscriptFile: string | undefined;
   const privacyRedaction: Partial<NonNullable<RunOptions["privacyRedaction"]>> = {};
   const privacyDetectors: Array<"face" | "license_plate" | "text"> = [];
 
@@ -313,6 +332,36 @@ function parseRunOptions(args: string[]): RunOptions {
       index += 1;
     } else if (argument === "--image-min-quality") {
       image.minQuality = boundedNumber(args, index, argument, 1, 100, true);
+      index += 1;
+    } else if (argument === "--clip-start") {
+      clip.startTimeSec = boundedNumber(args, index, argument, 0, 604800);
+      index += 1;
+    } else if (argument === "--clip-duration") {
+      clip.durationSec = boundedNumber(args, index, argument, 0.1, 300);
+      index += 1;
+    } else if (argument === "--clip-layout") {
+      const value = optionValue(args, index, argument);
+      if (value !== "original" && value !== "vertical_blur") {
+        throw new UsageError("--clip-layout must be original or vertical_blur");
+      }
+      clip.layout = value;
+      index += 1;
+    } else if (argument === "--clip-captions") {
+      clip.burnCaptions = true;
+    } else if (argument === "--clip-transcript") {
+      clipTranscriptFile = optionValue(args, index, argument);
+      index += 1;
+    } else if (argument === "--clip-min-duration") {
+      clipAnalysis.minDurationSec = boundedNumber(args, index, argument, 1, 300);
+      index += 1;
+    } else if (argument === "--clip-max-duration") {
+      clipAnalysis.maxDurationSec = boundedNumber(args, index, argument, 1, 300);
+      index += 1;
+    } else if (argument === "--clip-count") {
+      clipAnalysis.maxCandidates = boundedNumber(args, index, argument, 1, 20, true);
+      index += 1;
+    } else if (argument === "--clip-keyword") {
+      (clipAnalysis.keywords ??= []).push(optionValue(args, index, argument));
       index += 1;
     } else if (argument === "--audiogram-artwork") {
       audiogram.artworkSource = optionValue(args, index, argument);
@@ -516,6 +565,34 @@ function parseRunOptions(args: string[]): RunOptions {
     }
   }
   const hasPrivacyOptions = privacyDetectors.length > 0 || Object.keys(privacyRedaction).length > 0;
+  const clipPreset = outputs.length === 1 && outputs[0]?.kind === "preset"
+    ? outputs[0].value : undefined;
+  const hasClip = Object.keys(clip).length > 0 || clipPreset === "video_clip_v1";
+  const hasClipAnalysis = Object.keys(clipAnalysis).length > 0 || clipPreset === "clip_candidates_v1";
+  if (hasClip && (recipe || clipPreset !== "video_clip_v1" || hasClipAnalysis)) {
+    throw new UsageError("clip render options require exactly one video_clip_v1 --preset");
+  }
+  if (hasClip && (clip.startTimeSec === undefined || clip.durationSec === undefined)) {
+    throw new UsageError("video_clip_v1 requires --clip-start and --clip-duration");
+  }
+  if (hasClipAnalysis && (recipe || clipPreset !== "clip_candidates_v1")) {
+    throw new UsageError("clip analysis options require exactly one clip_candidates_v1 --preset");
+  }
+  if ((clipAnalysis.minDurationSec ?? 15) > (clipAnalysis.maxDurationSec ?? 60)) {
+    throw new UsageError("--clip-min-duration must not exceed --clip-max-duration");
+  }
+  if ((clipAnalysis.keywords?.length ?? 0) > 20) {
+    throw new UsageError("At most 20 --clip-keyword values are supported");
+  }
+  if (clipAnalysis.keywords?.some((keyword) => !keyword.trim() || Buffer.byteLength(keyword, "utf8") > 100)) {
+    throw new UsageError("Each --clip-keyword must contain 1 to 100 UTF-8 bytes of nonblank text");
+  }
+  if (clipTranscriptFile && !hasClip && !hasClipAnalysis) {
+    throw new UsageError("--clip-transcript requires a clipping preset");
+  }
+  if (clip.burnCaptions && !clipTranscriptFile) {
+    throw new UsageError("--clip-captions requires --clip-transcript with source timestamps");
+  }
   if (hasPrivacyOptions) {
     if (recipe) throw new UsageError("privacy-redaction options cannot be combined with --recipe");
     if (privacyDetectors.length === 0) {
@@ -543,6 +620,9 @@ function parseRunOptions(args: string[]): RunOptions {
     ...(hasPlaceholderOptions ? { placeholders } : {}),
     ...(hasContactSheetOptions ? { contactSheet } : {}),
     ...(hasImageOptions ? { image } : {}),
+    ...(hasClip ? { clip: clip as NonNullable<RunOptions["clip"]> } : {}),
+    ...(hasClipAnalysis ? { clipAnalysis } : {}),
+    ...(clipTranscriptFile ? { clipTranscriptFile } : {}),
     ...(hasAudiogramOptions || audiogramSelections.length > 0
       ? { audiogram: audiogram as NonNullable<RunOptions["audiogram"]> }
       : {}),
@@ -551,6 +631,7 @@ function parseRunOptions(args: string[]): RunOptions {
       : {}),
   };
 }
+
 
 function isHostedAsset(source: string): boolean {
   return /^(?:https?|gs):\/\//i.test(source);
@@ -596,6 +677,8 @@ async function resolveOutputs(
   image?: RunOptions["image"],
   audiogram?: RunOptions["audiogram"],
   privacyRedaction?: RunOptions["privacyRedaction"],
+  clip?: RunOptions["clip"],
+  clipAnalysis?: RunOptions["clipAnalysis"],
 ): Promise<Array<OutputAlias | JobOutput>> {
   // Plain aliases need no expansion; preset-specific options require authoritative metadata.
   if (!privacyRedaction && !selections.some((selection) => selection.kind === "preset")) {
@@ -636,6 +719,8 @@ async function resolveOutputs(
       }>;
       audiogram?: RunOptions["audiogram"];
       privacyRedaction?: RunOptions["privacyRedaction"];
+      clip?: RunOptions["clip"];
+      clipAnalysis?: RunOptions["clipAnalysis"];
     };
     if (animation) output.animation = animation;
     if (placeholders) output.placeholders = placeholders;
@@ -653,6 +738,8 @@ async function resolveOutputs(
     }
     if (audiogram) output.audiogram = audiogram;
     if (privacyRedaction) output.privacyRedaction = privacyRedaction;
+    if (clip) output.clip = clip;
+    if (clipAnalysis) output.clipAnalysis = clipAnalysis;
     return output;
   });
 }
@@ -723,6 +810,16 @@ export async function runCommand(
   );
 
   try {
+    // Older SDKs silently omit unknown output fields. Fail explicitly until the
+    // SDK with clipping serialization is installed, rather than submit a wrong job.
+    if ((options.clip || options.clipAnalysis) && !("getClipCandidates" in dependencies.jobs)) {
+      throw new UsageError("Clipping requires the MediaRuntime Node SDK release with getClipCandidates support");
+    }
+    if (options.clipTranscriptFile) {
+      const transcript = await readClipTranscript(options.clipTranscriptFile);
+      if (options.clip) options.clip.transcript = transcript;
+      if (options.clipAnalysis) options.clipAnalysis.transcript = transcript;
+    }
     // Auxiliary local files are resolved first so the submitted job contains durable sources.
     const audiogram = options.audiogram === undefined
       ? undefined
@@ -738,6 +835,8 @@ export async function runCommand(
           options.image,
           audiogram,
           options.privacyRedaction,
+          options.clip,
+          options.clipAnalysis,
         );
     const params: CreateJobParams = {
       source: options.source,

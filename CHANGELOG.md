@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.4.0 — 2026-09-13
+
+- Add capability-discovered Clip Candidates and Video Clip commands, bounded ranges,
+  original or vertical blurred framing, keyword controls, and opt-in burned captions.
+- Attach local JSON plans/segment arrays, SRT, or VTT with source timestamps; reuse
+  transcripts for analysis without another Whisper run. Validate bounded UTF-8 attachments
+  before submission and preserve the normal wait and verified ZIP download flow.
+- Require `@mediaruntime/node` 1.4.0 for clipping serialization and report parity.
+- Correct the executable version and regression-test it against the package manifest.
+
 ## 1.3.0 — 2026-08-31
 
 - Add complete Hosted Sticker Runtime commands for collection lifecycle, pack binding,

@@ -4,7 +4,12 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
-Status: stable `1.3.0`. The documented `1.x` command names, flags, JSON envelopes, exit
+Version `1.4.0` adds [clipping commands](docs/clipping.md) for analysis,
+manual ranges, vertical blur-fill, and JSON/SRT/VTT transcript attachments. It requires
+Node SDK 1.4.0 or newer and a gateway/engine deployment supporting the clipping
+presets. The live capability catalog determines which presets are available.
+
+The documented `1.x` command names, flags, JSON envelopes, exit
 codes, and credential precedence follow semantic versioning. Breaking changes require a
 new major version; additive commands and fields may ship in minor releases.
 

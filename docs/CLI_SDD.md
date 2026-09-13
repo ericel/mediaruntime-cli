@@ -141,6 +141,16 @@ mediaruntime run <source>
   [--json]
 ```
 
+When exactly one clipping preset is selected, `run` accepts the controls in
+[the clipping guide](clipping.md). `video_clip_v1` requires explicit `--clip-start`
+and `--clip-duration`; `clip_candidates_v1` accepts duration bounds, suggestion count,
+and repeated keywords. `--clip-transcript` accepts a local JSON plan/segment array,
+SRT, or VTT file with full-source timestamps (at most 1 MiB). Invalid attachments
+fail before job creation. Burned captions are opt-in through `--clip-captions`, which
+requires a transcript. Supplied transcripts bypass analysis transcription; manual
+ranges never require Whisper. Clipping controls cannot ambiguously target multiple
+outputs or a hosted recipe. This additive surface is available in client release 1.4.0.
+
 When exactly one `contact_sheet_v1` preset is selected, `run` also accepts bounded
 `--contact-columns`, `--contact-rows`, `--contact-tile-width`,
 `--contact-tile-height`, `--contact-interval`, `--contact-start`,
