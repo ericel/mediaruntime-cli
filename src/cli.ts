@@ -65,11 +65,12 @@ export {
   runLogoutCommand,
 } from "./commands/auth.js";
 
-const VERSION = "1.4.0";
+const VERSION = "1.5.0";
 const HELP = `MediaRuntime CLI
 
 Usage:
-  mediaruntime run <source> (--recipe <name[@version]> | --output <alias> | --preset <name>) [...] [--wait]
+  mediaruntime run <source> (--recipe <name[@version]> | --output <alias> | --preset <name>) [...] [--no-webhook] [--wait]
+    --no-webhook disables callbacks for this job; normal billing applies.
     Animation presets: [--animation-width N] [--animation-fps N] [--animation-start SEC]
       [--animation-duration SEC] [--animation-loop N] [--animation-quality N]
     Placeholder preset: [--placeholder-max-dimension N] [--placeholder-time SEC]

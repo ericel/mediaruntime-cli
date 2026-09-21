@@ -30,6 +30,7 @@ function detailsProjection(job: JobDetails): Record<string, unknown> {
     id: job.id,
     status: job.status,
     tier: job.tier,
+    ...(job.deliverWebhook === undefined ? {} : { deliverWebhook: job.deliverWebhook }),
     usage: job.usage,
     billing: job.billing,
     bundle: {

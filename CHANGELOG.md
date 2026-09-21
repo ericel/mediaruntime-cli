@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.0 — 2026-09-21
+
+- Add `run --no-webhook` to suppress callbacks for a billable job without changing account settings.
+- Preserve normal delivery when omitted; waiting and downloading work with either policy.
+- Require Node SDK 1.5.0 and expose the returned policy in job detail JSON.
+
 ## 1.4.0 — 2026-09-13
 
 - Add capability-discovered Clip Candidates and Video Clip commands, bounded ranges,

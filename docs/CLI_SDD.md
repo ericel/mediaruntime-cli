@@ -135,6 +135,7 @@ mediaruntime run <source>
   (--output <alias> | --preset <public-preset>) [...]
   [--metadata <json-object>]
   [--idempotency-key <key>]
+  [--no-webhook]
   [--wait]
   [--timeout-ms <positive-integer>]
   [--download <zip-path>] [--force]
@@ -193,6 +194,8 @@ It is parsed locally and rejected before submission if malformed, an array, or a
 `--idempotency-key` is the caller's durable business key. If it is omitted, the SDK
 creates one invocation-scoped key and reuses it only for that invocation's transport
 retries.
+
+`--no-webhook` forwards `deliverWebhook: false` through Node SDK 1.5.0 or newer. It applies to aliases, presets, and hosted recipes, and is independent of waiting/downloading. Omission preserves the default account webhook behavior. Billing and retention are unchanged; manual webhook retries cannot override the opt-out.
 
 Without `--wait`, the command prints the accepted receipt and exits. `--wait` uses the SDK
 poller until a terminal state. `--timeout-ms` applies to that wait, defaults to `300000`,

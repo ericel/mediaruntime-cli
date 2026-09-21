@@ -4,6 +4,14 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
+Version `1.5.0` adds `run --no-webhook` for local development against hosted MediaRuntime. Use `--wait` or `--download` to retrieve results without a callback. Normal account billing applies; omitting the switch preserves normal webhook delivery.
+
+```bash
+mediaruntime run ./product-video.mp4 --output video.web --no-webhook --download ./result.zip
+```
+
+This suppresses callbacks even when your account has a live endpoint. The account configuration is unchanged. Webhook retries cannot override the job's opt-out. A polling timeout does not cancel processing: keep the printed job ID and use `mediaruntime jobs get <job-id>` to check it instead of creating another billable job.
+
 Version `1.4.0` adds [clipping commands](docs/clipping.md) for analysis,
 manual ranges, vertical blur-fill, and JSON/SRT/VTT transcript attachments. It requires
 Node SDK 1.4.0 or newer and a gateway/engine deployment supporting the clipping

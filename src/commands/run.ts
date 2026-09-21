@@ -55,6 +55,7 @@ interface RunOptions {
   recipe?: string;
   metadata?: Metadata;
   idempotencyKey?: string;
+  deliverWebhook?: false;
   wait: boolean;
   timeoutMs?: number;
   download?: string;
@@ -190,6 +191,7 @@ function parseRunOptions(args: string[]): RunOptions {
   let metadata: Metadata | undefined;
   let recipe: string | undefined;
   let idempotencyKey: string | undefined;
+  let deliverWebhook: false | undefined;
   let wait = false;
   let timeoutMs: number | undefined;
   let download: string | undefined;
@@ -223,6 +225,8 @@ function parseRunOptions(args: string[]): RunOptions {
     } else if (argument === "--idempotency-key") {
       idempotencyKey = optionValue(args, index, argument);
       index += 1;
+    } else if (argument === "--no-webhook") {
+      deliverWebhook = false;
     } else if (argument === "--wait") {
       wait = true;
     } else if (argument === "--timeout-ms") {
@@ -611,6 +615,7 @@ function parseRunOptions(args: string[]): RunOptions {
     ...(recipe === undefined ? {} : { recipe }),
     ...(metadata === undefined ? {} : { metadata }),
     ...(idempotencyKey === undefined ? {} : { idempotencyKey }),
+    ...(deliverWebhook === undefined ? {} : { deliverWebhook }),
     wait,
     ...(timeoutMs === undefined ? {} : { timeoutMs }),
     ...(download === undefined ? {} : { download }),
@@ -762,6 +767,7 @@ function detailsProjection(job: JobDetails): Record<string, unknown> {
     id: job.id,
     status: job.status,
     tier: job.tier,
+    ...(job.deliverWebhook === undefined ? {} : { deliverWebhook: job.deliverWebhook }),
     usage: job.usage,
     billing: job.billing,
     bundle: {
@@ -844,6 +850,8 @@ export async function runCommand(
       ...(options.recipe === undefined ? {} : { recipe: options.recipe }),
       ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
       ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+      // Omit by default so normal account webhook delivery stays unchanged.
+      ...(options.deliverWebhook === undefined ? {} : { deliverWebhook: options.deliverWebhook }),
     };
     const submitted = await dependencies.jobs.create(params);
 
