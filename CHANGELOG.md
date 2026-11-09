@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.1 — 2026-11-09
+
+- Require Node SDK 1.5.1 so `run --timeout-ms` bounds the whole job wait,
+  including active requests, response-body reads, retries, and polling delays.
+- Preserve exit code 7 for wait expiration and stop local waiting without
+  resubmitting the job or starting a bundle download. Remote processing continues.
+- Add deterministic CLI regressions against the installed SDK for pending requests,
+  response bodies, poll/retry delays, and normal terminal completion.
+
 ## 1.5.0 — 2026-09-21
 
 - Add `run --no-webhook` to suppress callbacks for a billable job without changing account settings.

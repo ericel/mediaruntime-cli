@@ -201,6 +201,11 @@ Without `--wait`, the command prints the accepted receipt and exits. `--wait` us
 poller until a terminal state. `--timeout-ms` applies to that wait, defaults to `300000`,
 and is invalid without `--wait` or `--download`. `--download` implies `--wait`.
 
+CLI 1.5.1 requires Node SDK 1.5.1 or newer so this budget covers requests,
+response-body reads, transport retry delays, and polling delays. Expiration exits
+with code `7` and stops local waiting without submitting another job or downloading
+a bundle. The remote job continues; poll its existing ID to retrieve later results.
+
 Examples:
 
 ```bash

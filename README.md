@@ -4,6 +4,11 @@ Official command-line client for MediaRuntime. It submits media, waits for jobs,
 the canonical ZIP output bundle, inspects account jobs, and sends correctly signed
 synthetic webhooks to a local receiver.
 
+Version `1.5.1` requires the fixed Node SDK `1.5.1` or newer. With `--wait` or
+`--download`, `--timeout-ms` bounds the entire job wait, including active requests,
+response-body reads, retries, and polling delays. Expiration exits with code `7`
+and stops local waiting; the remote job continues.
+
 Version `1.5.0` adds `run --no-webhook` for local development against hosted MediaRuntime. Use `--wait` or `--download` to retrieve results without a callback. Normal account billing applies; omitting the switch preserves normal webhook delivery.
 
 ```bash

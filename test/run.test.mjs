@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { executeCli } from "../dist/cli.js";
+import { JobWaitTimeoutError } from "@mediaruntime/node";
 
 function details(status = "COMPLETED") {
   return {
@@ -49,6 +50,34 @@ function submitted(result = details()) {
     },
   };
 }
+
+test("run reports a wait deadline without resubmitting or downloading the job", async () => {
+  const writes = { stdout: "", stderr: "" };
+  let submissions = 0;
+  let downloads = 0;
+  let waitOptions;
+  const code = await executeCli([
+    "run", "https://example.test/video.mp4", "--recipe", "web-video",
+    "--download", "./job_run.zip", "--timeout-ms", "100", "--json",
+  ], {
+    createClient: () => ({ jobs: { create: async () => {
+      submissions += 1;
+      return { ...submitted(), wait: async (options) => {
+        waitOptions = options;
+        throw new JobWaitTimeoutError(100, details("PROCESSING"));
+      } };
+    } } }),
+    downloadBundle: async () => { downloads += 1; },
+    writeStdout: (text) => { writes.stdout += text; },
+    writeStderr: (text) => { writes.stderr += text; },
+  });
+  assert.equal(code, 7);
+  assert.equal(submissions, 1);
+  assert.equal(downloads, 0);
+  assert.deepEqual(waitOptions, { timeoutMs: 100 });
+  assert.equal(writes.stdout, "");
+  assert.match(writes.stderr, /within 100ms/);
+});
 
 test("run passes local source and aliases through, waits, and downloads only the bundle", async () => {
   let createParams;
